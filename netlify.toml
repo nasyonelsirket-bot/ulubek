@@ -1,17 +1,8 @@
 [build]
   command = "npm run build"
-  publish = "out"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# Trailing slash olmayan URL'leri duzgun yonlendir
-[[redirects]]
-  from = "/kategori/:slug"
-  to = "/kategori/:slug/"
-  status = 301
-
-[[redirects]]
-  from = "/haber/:slug"
-  to = "/haber/:slug/"
-  status = 301
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { getBreakingNews } from "@/lib/data/articles";
+import { getBreakingNews } from "@/lib/services/articles";
 
-export default function BreakingNewsTicker() {
-  const breakingNews = getBreakingNews();
+export default async function BreakingNewsTicker() {
+  const breakingNews = await getBreakingNews();
 
   if (breakingNews.length === 0) return null;
 

@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  HIDDEN
+  ARCHIVED
+}
+
+enum SourceType {
+  RSS
+  API
+  WEB_FEED
+  SOCIAL
+  MANUAL
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(ADMIN)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  color       String    @default("#dc2626")
+  sortOrder   Int       @default(0)
+  articles    Article[]
+  sources     Source[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  articles  ArticleTag[]
+  createdAt DateTime     @default(now())
+
+  @@map("tags")
+}
+
+model Source {
+  id                   String     @id @default(cuid())
+  name                 String
+  url                  String
+  type                 SourceType @default(RSS)
+  trustScore           Float      @default(0.5)
+  isActive             Boolean    @default(true)
+  categoryId           String?
+  category             Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  fetchIntervalMinutes Int        @default(30)
+  lastFetchedAt        DateTime?
+  lastFetchError       String?
+  articlesFetched      Int        @default(0)
+  articles             Article[]
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@index([isActive, type])
+  @@map("sources")
+}
+
+model Article {
+  id                String        @id @default(cuid())
+  title             String
+  slug              String        @unique
+  excerpt           String?       @db.Text
+  content           String        @db.Text
+  image             String?
+  status            ArticleStatus @default(PUBLISHED)
+  featured          Boolean       @default(false)
+  breaking          Boolean       @default(false)
+  readTime          Int           @default(3)
+  publishedAt       DateTime      @default(now())
+  categoryId        String
+  category          Category      @relation(fields: [categoryId], references: [id])
+  sourceId          String?
+  source            Source?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  externalId        String?
+  sourceUrl         String?       @unique
+  contentHash       String?
+  originalTitle     String?
+  originalContent   String?       @db.Text
+  metaTitle         String?
+  metaDescription   String?       @db.Text
+  aiProcessed       Boolean       @default(false)
+  aiProcessedAt     DateTime?
+  aiProcessingError String?       @db.Text
+  tags              ArticleTag[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([categoryId])
+  @@index([slug])
+  @@index([contentHash])
+  @@index([aiProcessed])
+  @@map("articles")
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@map("article_tags")
+}
+
+model RssFetchLog {
+  id        String   @id @default(cuid())
+  sourceId  String?
+  status    String
+  fetched   Int      @default(0)
+  created   Int      @default(0)
+  skipped   Int      @default(0)
+  errors    Int      @default(0)
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("rss_fetch_logs")
+}

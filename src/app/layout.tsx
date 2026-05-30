@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
-import BreakingNewsTicker from "@/components/layout/BreakingNewsTicker";
+import { getDefaultMetadata } from "@/lib/seo/metadata";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,33 +8,13 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "Ulubek Medya | Güvenilir Haber Kaynağınız",
-    template: "%s | Ulubek Medya",
-  },
-  description:
-    "Türkiye ve dünyadan en güncel haberler. Gündem, ekonomi, spor, teknoloji, sağlık ve daha fazlası Ulubek Medya'da.",
-  keywords: ["haber", "gündem", "ekonomi", "spor", "teknoloji", "Türkiye", "Ulubek Medya"],
-  openGraph: {
-    type: "website",
-    locale: "tr_TR",
-    siteName: "Ulubek Medya",
-  },
-};
+export const metadata: Metadata = getDefaultMetadata();
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr" className={`${inter.variable} h-full`}>
       <body className="flex min-h-full flex-col bg-gray-50 font-sans antialiased">
-        <Header />
-        <BreakingNewsTicker />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        {children}
       </body>
     </html>
   );

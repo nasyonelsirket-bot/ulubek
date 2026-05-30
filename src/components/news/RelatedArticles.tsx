@@ -1,8 +1,15 @@
-import { Article } from "@/types";
 import ArticleCard from "./ArticleCard";
 
 interface RelatedArticlesProps {
-  articles: Article[];
+  articles: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    image?: string | null;
+    publishedAt: Date | string;
+    readTime: number;
+    category?: { name: string; slug: string; color: string };
+  }>;
 }
 
 export default function RelatedArticles({ articles }: RelatedArticlesProps) {
