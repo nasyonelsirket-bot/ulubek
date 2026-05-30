@@ -1,13 +1,20 @@
-import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import {
+  adminErr,
+  adminOk,
+  requireAdminSession,
+  toErrorMessage,
+} from "@/lib/api/admin-response";
 import { getAllCategories } from "@/lib/services/articles";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
-  }
+  try {
+    const { unauthorized } = await requireAdminSession();
+    if (unauthorized) return unauthorized;
 
-  const categories = await getAllCategories();
-  return NextResponse.json(categories);
+    const categories = await getAllCategories();
+    return adminOk({ data: categories });
+  } catch (err) {
+    console.error("[admin/categories GET]", err);
+    return adminErr(toErrorMessage(err));
+  }
 }

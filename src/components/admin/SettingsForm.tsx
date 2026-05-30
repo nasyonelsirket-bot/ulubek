@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import type { PublicSettings } from "@/lib/settings/types";
+import { readApiJson, apiFailed } from "@/lib/api/client";
 
 interface SettingsFormProps {
   initial: PublicSettings;
@@ -50,8 +51,8 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data = await readApiJson<{ success?: boolean; error?: string }>(res);
+      if (apiFailed(data, res)) {
         setMessage(data.error || "Kaydedilemedi");
         return;
       }

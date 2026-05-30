@@ -39,6 +39,7 @@ import { MINISTRY_SOURCES } from "@/data/ministry-sources";
 import { PORTAL_NEWS_SOURCES } from "@/data/portal-sources";
 import type { SourceKind, SourceFetchType, SourceUrlType } from "@/data/types";
 import { formatDateTime } from "@/lib/utils/date";
+import { apiFailed, readApiJson } from "@/lib/api/client";
 
 interface Category {
   id: string;
@@ -129,22 +130,22 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error || "Kaynak eklenemedi");
+      const data = await readApiJson<Record<string, unknown>>(res);
+      if (apiFailed(data, res)) {
+        setMessage(String(data.error || "Kaynak eklenemedi"));
         return;
       }
 
       setSources((prev) => [
         {
-          id: data.id,
-          name: data.name,
-          url: data.url,
-          type: data.type,
-          kind: data.kind,
-          isActive: data.isActive,
-          trustScore: data.trustScore,
-          fetchIntervalMinutes: data.fetchIntervalMin,
+          id: String(data.id),
+          name: String(data.name),
+          url: String(data.url),
+          type: String(data.type),
+          kind: data.kind as SourceKind | undefined,
+          isActive: Boolean(data.isActive),
+          trustScore: Number(data.trustScore),
+          fetchIntervalMinutes: Number(data.fetchIntervalMin),
           lastFetchedAt: null,
           lastFetchError: null,
           articlesFetched: 0,
@@ -193,22 +194,22 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error || "Portal kaynağı eklenemedi");
+      const data = await readApiJson<Record<string, unknown>>(res);
+      if (apiFailed(data, res)) {
+        setMessage(String(data.error || "Portal kaynağı eklenemedi"));
         return;
       }
 
       setSources((prev) => [
         {
-          id: data.id,
-          name: data.name,
-          url: data.url,
-          type: data.type,
-          kind: data.kind,
-          isActive: data.isActive,
-          trustScore: data.trustScore,
-          fetchIntervalMinutes: data.fetchIntervalMin,
+          id: String(data.id),
+          name: String(data.name),
+          url: String(data.url),
+          type: String(data.type),
+          kind: data.kind as SourceKind | undefined,
+          isActive: Boolean(data.isActive),
+          trustScore: Number(data.trustScore),
+          fetchIntervalMinutes: Number(data.fetchIntervalMin),
           lastFetchedAt: null,
           lastFetchError: null,
           articlesFetched: 0,
@@ -244,21 +245,21 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error || "Bakanlık kaynağı eklenemedi");
+      const data = await readApiJson<Record<string, unknown>>(res);
+      if (apiFailed(data, res)) {
+        setMessage(String(data.error || "Bakanlık kaynağı eklenemedi"));
         return;
       }
 
       setSources((prev) => [
         {
-          id: data.id,
-          name: data.name,
-          url: data.url,
-          type: data.type,
+          id: String(data.id),
+          name: String(data.name),
+          url: String(data.url),
+          type: String(data.type),
           kind: "MINISTRY",
           isActive: true,
-          trustScore: data.trustScore,
+          trustScore: Number(data.trustScore),
           fetchIntervalMinutes: 1,
           lastFetchedAt: null,
           lastFetchError: null,
@@ -305,14 +306,24 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
 
     try {
       const res = await fetch(`/api/admin/sources/${id}/fetch`, { method: "POST" });
-      const data = await res.json();
+      const data = await readApiJson<{
+        success?: boolean;
+        error?: string;
+        sourceName?: string;
+        found?: number;
+        itemsImported?: number;
+        skipped?: number;
+        duplicate?: number;
+        errors?: string[];
+      }>(res);
 
-      if (res.ok) {
+      if (!apiFailed(data, res)) {
+        const errText = data.errors?.length ? ` · Hata: ${data.errors.join(", ")}` : "";
         setMessage(
-          `${data.sourceName}: ${data.itemsImported} yayınlandı · ${data.duplicate ?? 0} kopya · ${data.spam ?? 0} spam · ${data.skipped} atlandı`
+          `${data.sourceName}: ${data.found ?? 0} bulundu · ${data.itemsImported ?? 0} eklendi · ${data.skipped ?? 0} atlandı · ${data.duplicate ?? 0} kopya${errText}`
         );
       } else {
-        setMessage(data.error || "Tarama başarısız");
+        setMessage(data.error || data.errors?.join(", ") || "Tarama başarısız");
       }
       router.refresh();
     } finally {
@@ -326,9 +337,25 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
 
     try {
       const res = await fetch("/api/admin/sources/fetch-all", { method: "POST" });
-      const data = await res.json();
+      const data = await readApiJson<{
+        success?: boolean;
+        error?: string;
+        imported?: number;
+        created?: number;
+        skipped?: number;
+        found?: number;
+        bootstrap?: boolean;
+        databaseCount?: number;
+        sources?: Array<{ found?: number; duplicate?: number }>;
+      }>(res);
+      if (apiFailed(data, res)) {
+        setMessage(data.error || "Tarama başarısız");
+        return;
+      }
+      const dup = data.sources?.reduce((n: number, s: { duplicate?: number }) => n + (s.duplicate ?? 0), 0) ?? 0;
+      const found = data.found ?? data.sources?.reduce((n: number, s: { found?: number }) => n + (s.found ?? 0), 0) ?? 0;
       setMessage(
-        `Tarama tamamlandı: ${data.imported ?? data.created} yayın · ${data.skipped} atlandı · ${data.sources?.reduce((n: number, s: { duplicate?: number }) => n + (s.duplicate ?? 0), 0) ?? 0} kopya`
+        `Tarama tamamlandı: ${found} bulundu · ${data.imported ?? data.created} eklendi · ${data.skipped} atlandı · ${dup} kopya · DB: ${data.databaseCount ?? "?"} haber${data.bootstrap ? " (ilk kurulum)" : ""}`
       );
       router.refresh();
     } finally {

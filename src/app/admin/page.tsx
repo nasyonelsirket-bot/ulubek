@@ -1,13 +1,15 @@
 import { getAdminDashboardStats } from "@/lib/services/admin";
 import { formatDateTime } from "@/lib/utils/date";
-import { Eye, Newspaper, Rss, Sparkles, ListOrdered } from "lucide-react";
+import { Eye, Newspaper, Rss, Sparkles, ListOrdered, Database } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminDashboard() {
-  const { total, published, rssSources, pendingAI, lastFetch, queue } = await getAdminDashboardStats();
+  const { total, published, rssSources, pendingAI, lastFetch, queue, dynamicCount, bootstrapTarget } =
+    await getAdminDashboardStats();
 
   const stats = [
     { label: "Toplam Haber", value: total, icon: Newspaper, color: "text-blue-600", href: "/admin/articles" },
+    { label: "AI ile Eklenen", value: dynamicCount, icon: Database, color: "text-emerald-600", href: "/admin/logs" },
     { label: "Yayında", value: published, icon: Eye, color: "text-green-600", href: "/admin/published" },
     { label: "Kuyruk", value: queue.total, icon: ListOrdered, color: "text-purple-600", href: "/admin/queue" },
     { label: "Bekleyen", value: pendingAI, icon: Sparkles, color: "text-amber-600", href: "/admin/pending" },
@@ -40,12 +42,20 @@ export default async function AdminDashboard() {
         })}
       </div>
 
-      {lastFetch && (
+      {lastFetch ? (
         <div className="mt-8 rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Son AI Taraması</h2>
+          <h2 className="font-semibold">Son Tarama</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {formatDateTime(lastFetch.createdAt.toISOString())} — {lastFetch.status} —{" "}
-            {lastFetch.itemsImported} haber yayınlandı
+            {formatDateTime(lastFetch.createdAt.toISOString())} — {lastFetch.itemsImported} haber eklendi
+            · Veritabanı: {dynamicCount}/{bootstrapTarget}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-5">
+          <h2 className="font-semibold text-amber-900">Henüz tarama yapılmadı</h2>
+          <p className="mt-2 text-sm text-amber-800">
+            Kaynak Yönetimi → &quot;Tümünü Tara (AI Motor)&quot; ile ilk kurulumu başlatın.
+            Hedef: {bootstrapTarget} haber.
           </p>
         </div>
       )}

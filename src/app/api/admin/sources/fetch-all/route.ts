@@ -1,17 +1,32 @@
-import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import {
+  adminErr,
+  adminOk,
+  requireAdminSession,
+  toErrorMessage,
+} from "@/lib/api/admin-response";
 import { fetchAllSources } from "@/lib/services/admin";
 
-export async function POST() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
-  }
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
-  const summary = await fetchAllSources();
-  return NextResponse.json({
-    ...summary,
-    created: summary.imported,
-    results: summary.sources,
-  });
+export async function POST() {
+  try {
+    const { unauthorized } = await requireAdminSession();
+    if (unauthorized) return unauthorized;
+
+    const summary = await fetchAllSources();
+    const found =
+      summary.sources?.reduce((n: number, s: { found?: number }) => n + (s.found ?? 0), 0) ?? 0;
+
+    return adminOk({
+      ...summary,
+      created: summary.imported,
+      found,
+      results: summary.sources,
+      databaseCount: summary.databaseCount,
+    });
+  } catch (err) {
+    console.error("[admin/sources/fetch-all POST]", err);
+    return adminErr(toErrorMessage(err));
+  }
 }

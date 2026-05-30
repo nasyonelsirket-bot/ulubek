@@ -1,26 +1,12 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import path from "node:path";
 import type { QueueItem, QueueStatus } from "@/data/types";
-
-const RUNTIME_DIR = path.join(process.cwd(), "data", "runtime");
-const QUEUE_FILE = path.join(RUNTIME_DIR, "queue.json");
-
-function ensureDir() {
-  if (!existsSync(RUNTIME_DIR)) mkdirSync(RUNTIME_DIR, { recursive: true });
-}
+import { readRuntimeJson, writeRuntimeJson } from "@/lib/runtime/paths";
 
 function readQueue(): QueueItem[] {
-  try {
-    if (!existsSync(QUEUE_FILE)) return [];
-    return JSON.parse(readFileSync(QUEUE_FILE, "utf-8")) as QueueItem[];
-  } catch {
-    return [];
-  }
+  return readRuntimeJson<QueueItem[]>("queue.json", []);
 }
 
 function writeQueue(items: QueueItem[]) {
-  ensureDir();
-  writeFileSync(QUEUE_FILE, JSON.stringify(items.slice(0, 1000), null, 2), "utf-8");
+  writeRuntimeJson("queue.json", items.slice(0, 1000));
 }
 
 export function getQueueItems(status?: QueueStatus): QueueItem[] {
@@ -56,12 +42,12 @@ export function isUrlInQueue(url: string): boolean {
 }
 
 export function getQueueStats() {
-  const all = readQueue();
+  const items = readQueue();
   return {
-    total: all.length,
-    scanned: all.filter((i) => i.status === "SCANNED").length,
-    pending: all.filter((i) => i.status === "PENDING").length,
-    published: all.filter((i) => i.status === "PUBLISHED").length,
-    rejected: all.filter((i) => i.status === "REJECTED").length,
+    total: items.length,
+    pending: items.filter((i) => i.status === "PENDING").length,
+    scanned: items.filter((i) => i.status === "SCANNED").length,
+    published: items.filter((i) => i.status === "PUBLISHED").length,
+    rejected: items.filter((i) => i.status === "REJECTED").length,
   };
 }

@@ -1,44 +1,67 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import path from "node:path";
-import type { PipelineSummary } from "./pipeline";
+import type { PipelineSummary, PipelineResult } from "./pipeline";
+import { readRuntimeJson, writeRuntimeJson } from "@/lib/runtime/paths";
+
+export interface SourceScanDetail {
+  sourceId: string;
+  sourceName: string;
+  found: number;
+  imported: number;
+  skipped: number;
+  duplicate: number;
+  spam: number;
+  errors: string[];
+}
 
 export interface PipelineLogEntry {
   id: string;
   timestamp: string;
   sourceId?: string;
   sourceName?: string;
+  found: number;
   imported: number;
   skipped: number;
   duplicate: number;
   spam: number;
   published: number;
   errors: string[];
-  trigger: "cron" | "manual" | "single";
+  trigger: "cron" | "manual" | "single" | "bootstrap";
+  sources: SourceScanDetail[];
+  message?: string;
 }
 
-const RUNTIME_DIR = path.join(process.cwd(), "data", "runtime");
-const LOG_FILE = path.join(RUNTIME_DIR, "pipeline-log.json");
-const MAX_LOGS = 100;
+const MAX_LOGS = 200;
 
-function ensureDir() {
-  if (!existsSync(RUNTIME_DIR)) mkdirSync(RUNTIME_DIR, { recursive: true });
+function mapSourceDetail(s: PipelineResult): SourceScanDetail {
+  return {
+    sourceId: s.sourceId,
+    sourceName: s.sourceName,
+    found: s.found,
+    imported: s.imported,
+    skipped: s.skipped,
+    duplicate: s.duplicate,
+    spam: s.spam,
+    errors: s.errors,
+  };
 }
 
 export function appendPipelineLog(
   summary: PipelineSummary,
   trigger: PipelineLogEntry["trigger"],
-  sourceId?: string
+  sourceId?: string,
+  message?: string
 ): PipelineLogEntry {
   const duplicate = summary.sources.reduce((n, s) => n + (s.duplicate ?? 0), 0);
   const spam = summary.sources.reduce((n, s) => n + (s.spam ?? 0), 0);
+  const found = summary.sources.reduce((n, s) => n + (s.found ?? 0), 0);
 
   const entry: PipelineLogEntry = {
-    id: `log-${Date.now()}`,
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     timestamp: summary.timestamp,
     sourceId,
     sourceName: sourceId
       ? summary.sources.find((s) => s.sourceId === sourceId)?.sourceName
       : undefined,
+    found,
     imported: summary.imported,
     skipped: summary.skipped,
     duplicate,
@@ -46,23 +69,17 @@ export function appendPipelineLog(
     published: summary.imported,
     errors: summary.sources.flatMap((s) => s.errors),
     trigger,
+    sources: summary.sources.map(mapSourceDetail),
+    message,
   };
 
-  ensureDir();
-  const existing = existsSync(LOG_FILE)
-    ? (JSON.parse(readFileSync(LOG_FILE, "utf-8")) as PipelineLogEntry[])
-    : [];
-  writeFileSync(LOG_FILE, JSON.stringify([entry, ...existing].slice(0, MAX_LOGS), null, 2), "utf-8");
+  const existing = readRuntimeJson<PipelineLogEntry[]>("pipeline-log.json", []);
+  writeRuntimeJson("pipeline-log.json", [entry, ...existing].slice(0, MAX_LOGS));
   return entry;
 }
 
 export function getPipelineLogs(): PipelineLogEntry[] {
-  try {
-    if (!existsSync(LOG_FILE)) return [];
-    return JSON.parse(readFileSync(LOG_FILE, "utf-8")) as PipelineLogEntry[];
-  } catch {
-    return [];
-  }
+  return readRuntimeJson<PipelineLogEntry[]>("pipeline-log.json", []);
 }
 
 export function getTotalImportedCount(): number {

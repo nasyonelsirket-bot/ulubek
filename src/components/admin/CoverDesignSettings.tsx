@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import type { PublicSettings, CoverTitleStyle, LogoPosition } from "@/lib/settings/types";
+import { readApiJson, apiFailed } from "@/lib/api/client";
 
 interface CoverDesignSettingsProps {
   initial: PublicSettings;
@@ -45,8 +46,8 @@ export default function CoverDesignSettings({ initial }: CoverDesignSettingsProp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) {
-        const data = await res.json();
+      const data = await readApiJson<{ success?: boolean; error?: string }>(res);
+      if (apiFailed(data, res)) {
         setMessage(data.error || "Kaydedilemedi");
         return;
       }
@@ -67,8 +68,8 @@ export default function CoverDesignSettings({ initial }: CoverDesignSettingsProp
       const fd = new FormData();
       fd.append("logo", file);
       const res = await fetch("/api/admin/cover-logo", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
+      const data = await readApiJson<{ success?: boolean; error?: string }>(res);
+      if (apiFailed(data, res)) {
         setMessage(data.error || "Logo yüklenemedi");
         return;
       }

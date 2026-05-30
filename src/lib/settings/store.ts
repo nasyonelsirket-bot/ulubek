@@ -1,15 +1,15 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import path from "node:path";
+import { writeFileSync } from "node:fs";
+import {
+  ensureRuntimeDir,
+  readRuntimeJson,
+  runtimeFile,
+  runtimeFileExists,
+  writeRuntimeJson,
+} from "@/lib/runtime/paths";
 import type { AppSettings, PublicSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
-const RUNTIME_DIR = path.join(process.cwd(), "data", "runtime");
-const SETTINGS_FILE = path.join(RUNTIME_DIR, "settings.json");
-const CUSTOM_LOGO = path.join(RUNTIME_DIR, "cover-logo.png");
-
-function ensureDir() {
-  if (!existsSync(RUNTIME_DIR)) mkdirSync(RUNTIME_DIR, { recursive: true });
-}
+const CUSTOM_LOGO_NAME = "cover-logo.png";
 
 function maskKey(key: string): string {
   if (!key || key.length < 8) return "";
@@ -28,8 +28,10 @@ function mergeWithEnv(settings: AppSettings): AppSettings {
 
 export function getSettings(): AppSettings {
   try {
-    if (!existsSync(SETTINGS_FILE)) return mergeWithEnv({ ...DEFAULT_SETTINGS });
-    const stored = JSON.parse(readFileSync(SETTINGS_FILE, "utf-8")) as Partial<AppSettings>;
+    const stored = readRuntimeJson<Partial<AppSettings>>("settings.json", {});
+    if (Object.keys(stored).length === 0 && !runtimeFileExists("settings.json")) {
+      return mergeWithEnv({ ...DEFAULT_SETTINGS });
+    }
     return mergeWithEnv({ ...DEFAULT_SETTINGS, ...stored });
   } catch {
     return mergeWithEnv({ ...DEFAULT_SETTINGS });
@@ -37,7 +39,6 @@ export function getSettings(): AppSettings {
 }
 
 export function saveSettings(partial: Partial<AppSettings>): AppSettings {
-  ensureDir();
   const current = getSettings();
   const next: AppSettings = { ...current, ...partial };
 
@@ -48,41 +49,42 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   if (partial.twitterBearerToken === "") next.twitterBearerToken = current.twitterBearerToken;
   if (partial.instagramAccessToken === "") next.instagramAccessToken = current.instagramAccessToken;
 
-  writeFileSync(
-    SETTINGS_FILE,
-    JSON.stringify(
-      {
-        aiProvider: next.aiProvider,
-        imageProvider: next.imageProvider,
-        openaiApiKey: next.openaiApiKey,
-        geminiApiKey: next.geminiApiKey,
-        openaiModel: next.openaiModel,
-        geminiModel: next.geminiModel,
-        scanIntervalMin: next.scanIntervalMin,
-        scanLookbackDays: next.scanLookbackDays,
-        minWordCount: next.minWordCount,
-        targetWordCount: next.targetWordCount,
-        useSourceImage: next.useSourceImage,
-        useStockImage: next.useStockImage,
-        useAiImage: next.useAiImage,
-        coverBrandingEnabled: next.coverBrandingEnabled,
-        coverWatermarkEnabled: next.coverWatermarkEnabled,
-        coverLogoPosition: next.coverLogoPosition,
-        coverTitleStyle: next.coverTitleStyle,
-        coverBreakingTagEnabled: next.coverBreakingTagEnabled,
-        coverLogoCustom: next.coverLogoCustom,
-        twitterApiKey: next.twitterApiKey,
-        twitterApiSecret: next.twitterApiSecret,
-        twitterBearerToken: next.twitterBearerToken,
-        twitterAccounts: next.twitterAccounts,
-        instagramAccessToken: next.instagramAccessToken,
-        instagramAccountId: next.instagramAccountId,
-      },
-      null,
-      2
-    ),
-    "utf-8"
-  );
+  const payload = {
+    aiProvider: next.aiProvider,
+    imageProvider: next.imageProvider,
+    openaiApiKey: next.openaiApiKey,
+    geminiApiKey: next.geminiApiKey,
+    openaiModel: next.openaiModel,
+    geminiModel: next.geminiModel,
+    scanIntervalMin: next.scanIntervalMin,
+    scanLookbackDays: next.scanLookbackDays,
+    minWordCount: next.minWordCount,
+    targetWordCount: next.targetWordCount,
+    useSourceImage: next.useSourceImage,
+    useStockImage: next.useStockImage,
+    useAiImage: next.useAiImage,
+    coverBrandingEnabled: next.coverBrandingEnabled,
+    coverWatermarkEnabled: next.coverWatermarkEnabled,
+    coverLogoPosition: next.coverLogoPosition,
+    coverTitleStyle: next.coverTitleStyle,
+    coverBreakingTagEnabled: next.coverBreakingTagEnabled,
+    coverLogoCustom: next.coverLogoCustom,
+    twitterApiKey: next.twitterApiKey,
+    twitterApiSecret: next.twitterApiSecret,
+    twitterBearerToken: next.twitterBearerToken,
+    twitterAccounts: next.twitterAccounts,
+    instagramAccessToken: next.instagramAccessToken,
+    instagramAccountId: next.instagramAccountId,
+  };
+
+  if (!writeRuntimeJson("settings.json", payload)) {
+    try {
+      ensureRuntimeDir();
+      writeFileSync(runtimeFile("settings.json"), JSON.stringify(payload, null, 2), "utf-8");
+    } catch (err) {
+      console.error("[settings] save failed:", err);
+    }
+  }
 
   return next;
 }
@@ -111,7 +113,7 @@ export function getPublicSettings(): PublicSettings {
     coverTitleStyle: s.coverTitleStyle,
     coverBreakingTagEnabled: s.coverBreakingTagEnabled,
     coverLogoCustom: s.coverLogoCustom,
-    coverLogoUploaded: existsSync(CUSTOM_LOGO),
+    coverLogoUploaded: runtimeFileExists(CUSTOM_LOGO_NAME),
     twitterKeyConfigured: !!s.twitterApiKey,
     twitterBearerConfigured: !!s.twitterBearerToken,
     instagramConfigured: !!s.instagramAccessToken,
@@ -129,5 +131,5 @@ export function getGeminiKey(): string {
 }
 
 export function hasCustomCoverLogo(): boolean {
-  return existsSync(CUSTOM_LOGO);
+  return runtimeFileExists(CUSTOM_LOGO_NAME);
 }

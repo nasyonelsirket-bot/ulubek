@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { PublicSettings } from "@/lib/settings/types";
+import { readApiJson, apiFailed } from "@/lib/api/client";
 
 interface SocialApiSettingsProps {
   initial: PublicSettings;
@@ -36,8 +37,8 @@ export default function SocialApiSettings({ initial }: SocialApiSettingsProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) {
-        const data = await res.json();
+      const data = await readApiJson<{ success?: boolean; error?: string }>(res);
+      if (apiFailed(data, res)) {
         setMessage(data.error || "Kaydedilemedi");
         return;
       }

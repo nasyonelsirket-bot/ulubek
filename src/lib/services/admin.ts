@@ -5,13 +5,14 @@ import {
   deleteSource as removeSource,
   countArticlesBySourceName,
 } from "@/lib/ai-engine/store";
-import { getPipelineLogs, getLastRunAt, getTotalImportedCount } from "@/lib/ai-engine/pipeline-log";
+import { getPipelineLogs, getLastRunAt } from "@/lib/ai-engine/pipeline-log";
 import { getQueueStats } from "@/lib/ai-engine/queue";
 import { getPublicSettings } from "@/lib/settings/store";
 import { getActiveAIProvider } from "@/lib/ai/engine";
 import { isGeminiAvailable } from "@/lib/ai/gemini";
 import { isOpenAIAvailable } from "@/lib/ai/openai";
-import { runAutoNewsPipeline, processSingleSource } from "@/lib/ai-engine/pipeline";
+import { getDynamicArticleCount, getPublishedArticleCount } from "@/lib/ai-engine/store";
+import { BOOTSTRAP_ARTICLE_TARGET } from "@/lib/ai-engine/runtime-init";
 import type { MockSource, SourceKind, SourceFetchType, SourceUrlType } from "@/data/types";
 
 export async function getEngineStats() {
@@ -22,7 +23,10 @@ export async function getEngineStats() {
   return {
     totalSources: sources.length,
     activeSources: sources.filter((s) => s.isActive).length,
-    totalImported: getTotalImportedCount(),
+    totalImported: getDynamicArticleCount(),
+    totalPublished: getPublishedArticleCount(),
+    bootstrapTarget: BOOTSTRAP_ARTICLE_TARGET,
+    bootstrapComplete: getDynamicArticleCount() >= BOOTSTRAP_ARTICLE_TARGET,
     lastRunAt: getLastRunAt(),
     openAiEnabled: isOpenAIAvailable(),
     geminiEnabled: isGeminiAvailable(),
@@ -54,6 +58,8 @@ export async function getAdminDashboardStats() {
   return {
     total: articles.length,
     published: articles.filter((a) => (a.status ?? "PUBLISHED") === "PUBLISHED").length,
+    dynamicCount: getDynamicArticleCount(),
+    bootstrapTarget: BOOTSTRAP_ARTICLE_TARGET,
     rssSources: engine.activeSources,
     pendingAI: queue.pending + queue.scanned,
     queue,
@@ -137,6 +143,7 @@ export async function deleteSource(id: string) {
 }
 
 export async function fetchSingleSource(sourceId: string) {
+  const { processSingleSource } = await import("@/lib/ai-engine/pipeline");
   const result = await processSingleSource(sourceId);
   if (!result) {
     return { success: false, error: "Kaynak bulunamadı veya pasif" };
@@ -145,6 +152,7 @@ export async function fetchSingleSource(sourceId: string) {
     success: true,
     sourceId,
     sourceName: result.sourceName,
+    found: result.found,
     itemsImported: result.imported,
     skipped: result.skipped,
     duplicate: result.duplicate,
@@ -154,8 +162,25 @@ export async function fetchSingleSource(sourceId: string) {
 }
 
 export async function fetchAllSources() {
+  const dynamicCount = getDynamicArticleCount();
+
+  if (dynamicCount < BOOTSTRAP_ARTICLE_TARGET) {
+    const { runBootstrapImport } = await import("@/lib/ai-engine/pipeline");
+    const summary = await runBootstrapImport();
+    return {
+      ...summary,
+      bootstrap: true,
+      databaseCount: getDynamicArticleCount(),
+    };
+  }
+
+  const { runAutoNewsPipeline } = await import("@/lib/ai-engine/pipeline");
   const summary = await runAutoNewsPipeline({ force: true, trigger: "manual" });
-  return summary;
+  return {
+    ...summary,
+    bootstrap: false,
+    databaseCount: getDynamicArticleCount(),
+  };
 }
 
 export async function mockUpdateArticle(

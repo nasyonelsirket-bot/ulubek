@@ -21,20 +21,23 @@ import {
   saveArticle,
   updateSourceFetchTime,
   getAllArticlesFromStore,
+  getDynamicArticleCount,
 } from "./store";
 import { appendPipelineLog } from "./pipeline-log";
 import { scrapeWebsite, scrapeArticlePage, isRssUrl } from "./scraper";
 import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
+import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
 
 const parser = new Parser({
-  timeout: 15000,
+  timeout: 20000,
   headers: { "User-Agent": "UlubekMedya-AI-Engine/2.0 (+https://ulubekmedya.com)" },
 });
 
 export interface PipelineResult {
   sourceId: string;
   sourceName: string;
+  found: number;
   imported: number;
   skipped: number;
   duplicate: number;
@@ -46,15 +49,18 @@ export interface PipelineSummary {
   processed: number;
   imported: number;
   skipped: number;
+  found: number;
   sources: PipelineResult[];
   timestamp: string;
+  bootstrap?: boolean;
 }
 
 export interface PipelineOptions {
   sourceId?: string;
   force?: boolean;
   respectInterval?: boolean;
-  trigger?: "cron" | "manual" | "single";
+  bootstrap?: boolean;
+  trigger?: "cron" | "manual" | "single" | "bootstrap";
 }
 
 interface FeedItem {
@@ -75,8 +81,9 @@ function shouldFetchSource(source: MockSource, force: boolean, respectInterval: 
   if (force) return true;
   if (!respectInterval) return true;
   if (!source.lastFetchedAt) return true;
+  const intervalMin = source.fetchIntervalMin ?? 1;
   const elapsed = Date.now() - new Date(source.lastFetchedAt).getTime();
-  return elapsed >= source.fetchIntervalMin * 60 * 1000;
+  return elapsed >= intervalMin * 60 * 1000;
 }
 
 function resolveFetchType(source: MockSource): SourceFetchType {
@@ -93,46 +100,107 @@ function isDuplicateReason(reason?: string): boolean {
   );
 }
 
+async function enrichItemContent(item: FeedItem): Promise<FeedItem> {
+  if (item.content.length >= 120 || !item.link) return item;
+  try {
+    const detail = await scrapeArticlePage(item.link);
+    if (!detail) return item;
+    return {
+      ...item,
+      title: detail.title || item.title,
+      content: detail.content.length > item.content.length ? detail.content : item.content,
+      sourceImage: item.sourceImage || detail.image,
+      publishedAt: item.publishedAt || detail.publishedAt,
+    };
+  } catch {
+    return item;
+  }
+}
+
 export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promise<PipelineSummary> {
   const {
     sourceId,
     force = false,
     respectInterval = !force,
-    trigger = sourceId ? "single" : force ? "manual" : "cron",
+    bootstrap = false,
+    trigger = sourceId ? "single" : bootstrap ? "bootstrap" : force ? "manual" : "cron",
   } = options;
 
   let sources = getAllSourcesFromStore().filter((s) => s.isActive);
   if (sourceId) {
     sources = sources.filter((s) => s.id === sourceId);
-  } else if (respectInterval) {
+  } else if (respectInterval && !bootstrap) {
     sources = sources.filter((s) => shouldFetchSource(s, false, true));
   }
 
   const results: PipelineResult[] = [];
   let totalImported = 0;
   let totalSkipped = 0;
+  let totalFound = 0;
+
+  if (sources.length === 0) {
+    const summary: PipelineSummary = {
+      processed: 0,
+      imported: 0,
+      skipped: 0,
+      found: 0,
+      sources: [],
+      timestamp: new Date().toISOString(),
+      bootstrap,
+    };
+    appendPipelineLog(summary, trigger, sourceId, "Aktif kaynak bulunamadı veya tarama aralığı dolmadı");
+    return summary;
+  }
 
   for (const source of sources) {
-    if (!shouldFetchSource(source, force, respectInterval)) continue;
-    const result = await processSource(source);
+    if (!shouldFetchSource(source, force || bootstrap, respectInterval && !bootstrap)) continue;
+    const result = await processSource(source, bootstrap);
     results.push(result);
     totalImported += result.imported;
     totalSkipped += result.skipped;
+    totalFound += result.found;
   }
 
   const summary: PipelineSummary = {
     processed: results.length,
     imported: totalImported,
     skipped: totalSkipped,
+    found: totalFound,
     sources: results,
     timestamp: new Date().toISOString(),
+    bootstrap,
   };
 
-  if (results.length > 0) {
-    appendPipelineLog(summary, trigger, sourceId);
+  appendPipelineLog(summary, trigger, sourceId);
+  return summary;
+}
+
+export async function runBootstrapImport(maxRounds = 8): Promise<PipelineSummary> {
+  let lastSummary: PipelineSummary | null = null;
+  let rounds = 0;
+
+  while (getDynamicArticleCount() < BOOTSTRAP_ARTICLE_TARGET && rounds < maxRounds) {
+    lastSummary = await runAutoNewsPipeline({
+      force: true,
+      bootstrap: true,
+      respectInterval: false,
+      trigger: "bootstrap",
+    });
+    rounds++;
+    if (lastSummary.imported === 0 && lastSummary.found === 0) break;
   }
 
-  return summary;
+  return (
+    lastSummary ?? {
+      processed: 0,
+      imported: 0,
+      skipped: 0,
+      found: 0,
+      sources: [],
+      timestamp: new Date().toISOString(),
+      bootstrap: true,
+    }
+  );
 }
 
 export async function processSingleSource(sourceId: string): Promise<PipelineResult | null> {
@@ -159,9 +227,10 @@ function extractRssImage(item: Record<string, unknown>): string | undefined {
   return match?.[1];
 }
 
-async function fetchItemsFromSource(source: MockSource): Promise<FeedItem[]> {
+async function fetchItemsFromSource(source: MockSource, bootstrap: boolean): Promise<FeedItem[]> {
   const settings = getSettings();
   const lookback = settings.scanLookbackDays;
+  const itemLimit = bootstrap ? 30 : 12;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -172,10 +241,17 @@ async function fetchItemsFromSource(source: MockSource): Promise<FeedItem[]> {
   }
 
   if (urlType === "RSS" || resolveFetchType(source) === "RSS") {
-    const feed = await parser.parseURL(source.url);
-    return (feed.items ?? [])
+    let feed;
+    try {
+      feed = await parser.parseURL(source.url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "RSS okunamadı";
+      throw new Error(`RSS hatası (${source.name}): ${msg}`);
+    }
+
+    const rawItems = (feed.items ?? [])
       .filter((item) => isWithinLookbackDays(item.pubDate || item.isoDate, lookback))
-      .slice(0, 8)
+      .slice(0, itemLimit)
       .map((item) => ({
         title: item.title?.trim() || "",
         link: item.link || item.guid || "",
@@ -183,12 +259,19 @@ async function fetchItemsFromSource(source: MockSource): Promise<FeedItem[]> {
         publishedAt: item.pubDate || item.isoDate,
         sourceImage: extractRssImage(item as Record<string, unknown>),
       }));
+
+    const enriched: FeedItem[] = [];
+    for (const item of rawItems) {
+      if (!item.title || !item.link) continue;
+      enriched.push(await enrichItemContent(item));
+    }
+    return enriched;
   }
 
-  const links = await scrapeWebsite(source.url, 12);
+  const links = await scrapeWebsite(source.url, itemLimit);
   const items: FeedItem[] = [];
 
-  for (const link of links.slice(0, 8)) {
+  for (const link of links) {
     if (isUrlInQueue(link.url)) continue;
     const detail = await scrapeArticlePage(link.url);
     if (detail?.publishedAt && !isWithinLookbackDays(detail.publishedAt, lookback)) continue;
@@ -199,14 +282,16 @@ async function fetchItemsFromSource(source: MockSource): Promise<FeedItem[]> {
       publishedAt: detail?.publishedAt,
       sourceImage: detail?.image,
     });
+    if (items.length >= itemLimit) break;
   }
   return items;
 }
 
-async function processSource(source: MockSource): Promise<PipelineResult> {
+async function processSource(source: MockSource, bootstrap = false): Promise<PipelineResult> {
   const result: PipelineResult = {
     sourceId: source.id,
     sourceName: source.name,
+    found: 0,
     imported: 0,
     skipped: 0,
     duplicate: 0,
@@ -215,7 +300,15 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
   };
 
   try {
-    const items = await fetchItemsFromSource(source);
+    const items = await fetchItemsFromSource(source, bootstrap);
+    result.found = items.length;
+
+    if (items.length === 0) {
+      result.errors.push("Son 10 günde haber bulunamadı");
+      updateSourceFetchTime(source.id, null, 0);
+      return result;
+    }
+
     const seen = getSeenUrls();
     const existingArticles = getAllArticlesFromStore();
     const articleIndex = buildExistingArticleIndex(existingArticles);
@@ -227,8 +320,14 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
 
     for (const item of items) {
       const link = item.link;
-      const title = item.title;
-      const rawContent = item.content;
+      let title = item.title;
+      let rawContent = item.content;
+
+      if (rawContent.length < 80 && link) {
+        const enriched = await enrichItemContent(item);
+        title = enriched.title;
+        rawContent = enriched.content;
+      }
 
       const queueEntry = addQueueItem({
         sourceId: source.id,
@@ -253,7 +352,7 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
         result.skipped++;
         if (preCheck.reason === "spam") result.spam++;
         else if (isDuplicateReason(preCheck.reason)) result.duplicate++;
-        updateQueueItem(queueEntry.id, { status: "REJECTED", error: preCheck.reason });
+        updateQueueItem(queueEntry.id, { status: "REJECTED", error: preCheck.message ?? preCheck.reason });
         continue;
       }
 
@@ -267,11 +366,11 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
         updateQueueItem(queueEntry.id, { status: "PENDING" });
 
         const aiResult = await processArticleWithAI({
-              title,
-              content: rawContent,
-              categories: categoryList,
-              sourceName: source.name,
-            });
+          title,
+          content: rawContent,
+          categories: categoryList,
+          sourceName: source.name,
+        });
 
         const postCheck = checkContentBeforePublish({
           url: link,
@@ -287,7 +386,7 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
           result.skipped++;
           if (postCheck.reason === "spam") result.spam++;
           else if (isDuplicateReason(postCheck.reason)) result.duplicate++;
-          updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.reason });
+          updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.message ?? postCheck.reason });
           continue;
         }
 
@@ -300,19 +399,22 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
           articleId,
           breaking: aiResult.breaking,
         });
-        const slug = uniqueSlug(aiResult.title);
+
+        const publishedAt = item.publishedAt
+          ? new Date(item.publishedAt).toISOString()
+          : new Date().toISOString();
 
         const article: RawArticle = {
           id: articleId,
           title: aiResult.title,
-          slug,
+          slug: uniqueSlug(aiResult.title),
           excerpt: aiResult.excerpt,
           content: aiResult.content,
           categoryId: getCategoryIdBySlug(categorySlug),
           image: imageResult.url,
           imageSquare: imageResult.urlSquare,
           imageStory: imageResult.urlStory,
-          publishedAt: new Date().toISOString(),
+          publishedAt,
           readTime: calcReadTime(aiResult.content),
           featured: source.trustScore >= 0.9,
           breaking: aiResult.breaking,
@@ -335,6 +437,8 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
         });
         void notifyArticlePublished(article.id);
         result.imported++;
+
+        if (bootstrap && getDynamicArticleCount() >= BOOTSTRAP_ARTICLE_TARGET) break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "İşleme hatası";
         result.errors.push(msg);
@@ -343,7 +447,7 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
       }
     }
 
-    updateSourceFetchTime(source.id, null, result.imported);
+    updateSourceFetchTime(source.id, result.errors.length > 0 ? result.errors[0] : null, result.imported);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
     result.errors.push(msg);

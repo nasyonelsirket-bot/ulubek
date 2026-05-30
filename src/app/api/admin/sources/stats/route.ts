@@ -1,12 +1,19 @@
-import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import {
+  adminErr,
+  adminOk,
+  requireAdminSession,
+  toErrorMessage,
+} from "@/lib/api/admin-response";
 import { getEngineStats } from "@/lib/services/admin";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
-  }
+  try {
+    const { unauthorized } = await requireAdminSession();
+    if (unauthorized) return unauthorized;
 
-  return NextResponse.json(await getEngineStats());
+    return adminOk({ data: await getEngineStats() });
+  } catch (err) {
+    console.error("[admin/sources/stats GET]", err);
+    return adminErr(toErrorMessage(err));
+  }
 }
