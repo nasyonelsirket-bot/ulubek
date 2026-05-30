@@ -26,9 +26,28 @@ Tarayıcıda [http://localhost:3000](http://localhost:3000) adresini açın.
 | Komut | Açıklama |
 |-------|----------|
 | `npm run dev` | Geliştirme sunucusunu başlatır |
-| `npm run build` | Production build oluşturur |
-| `npm run start` | Production sunucusunu başlatır |
+| `npm run build` | Static export (`out/` klasörü) oluşturur |
+| `npm run start` | Production sunucusunu başlatır (local) |
 | `npm run lint` | ESLint kontrolü yapar |
+
+## Netlify Deploy
+
+Proje **static export** ile Netlify'a uyumludur. `netlify.toml` dosyası build ayarlarını otomatik yapılandırır.
+
+| Ayar | Değer |
+|------|-------|
+| Build command | `npm run build` |
+| Publish directory | `out` |
+
+**Netlify Dashboard'da kontrol edin:**
+- Publish directory **`.next` OLMAMALI** — doğru değer `out`
+- Build command: `npm run build`
+- Node.js sürümü: 20
+
+Deploy sonrası tüm sayfalar `out/` klasöründen sunulur:
+- `/` → `out/index.html`
+- `/kategori/gundem/` → `out/kategori/gundem/index.html`
+- `/haber/.../` → `out/haber/.../index.html`
 
 ## Proje Yapısı
 
