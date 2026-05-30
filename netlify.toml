@@ -3,3 +3,8 @@ command = "npm run build"
 
 [build.environment]
 NODE_VERSION = "20"
+
+# Next.js App Router SSR — publish dizinini otomatik yönetir.
+# publish/base burada TANIMLANMAMALI (Netlify UI'da da boş bırakın).
+[[plugins]]
+package = "@netlify/plugin-nextjs"
