@@ -9,6 +9,7 @@ import { mapRawArticle, mapRawArticles } from "@/data/mappers";
 import { getAllArticlesFromStore } from "@/lib/ai-engine/store";
 import type { ArticleWithRelations, RawArticle } from "@/data/types";
 import { NEWS_SITEMAP_MAX_AGE_HOURS } from "@/lib/seo/config";
+import { estimateViewCount } from "@/lib/utils/view-count";
 
 export type { ArticleWithRelations } from "@/data/types";
 
@@ -66,6 +67,33 @@ export async function getRelatedArticles(articleId: string, categoryId: string, 
       .filter((a) => a.categoryId === categoryId && a.id !== articleId)
       .slice(0, limit)
   );
+}
+
+export async function getTrendingArticles(hours: 24 | 168, limit = 6): Promise<ArticleWithRelations[]> {
+  const since = Date.now() - hours * 60 * 60 * 1000;
+  const filtered = getMergedRaw().filter((a) => new Date(a.publishedAt).getTime() >= since);
+  const sorted = [...filtered].sort((a, b) => {
+    const va = estimateViewCount(a.id, a.publishedAt);
+    const vb = estimateViewCount(b.id, b.publishedAt);
+    return vb - va;
+  });
+  return mapRawArticles(sorted.slice(0, limit));
+}
+
+export async function getNextArticle(
+  currentId: string,
+  categoryId: string
+): Promise<ArticleWithRelations | null> {
+  const sorted = [...getMergedRaw()].sort(
+    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
+  const idx = sorted.findIndex((a) => a.id === currentId);
+  if (idx === -1) return null;
+
+  const nextInCategory = sorted.slice(idx + 1).find((a) => a.categoryId === categoryId);
+  const next = nextInCategory ?? sorted[idx + 1];
+  if (!next) return null;
+  return mapRawArticle(next);
 }
 
 export async function searchPublishedArticles(query: string): Promise<ArticleWithRelations[]> {

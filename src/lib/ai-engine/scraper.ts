@@ -5,6 +5,7 @@ export interface ScrapedArticle {
   url: string;
   content: string;
   image?: string;
+  publishedAt?: string;
 }
 
 const USER_AGENT = "UlubekMedya-Bot/2.0 (+https://ulubekmedya.com)";
@@ -70,8 +71,14 @@ export async function scrapeArticlePage(url: string): Promise<ScrapedArticle | n
 
   const image = $("meta[property='og:image']").attr("content");
 
+  const publishedAt =
+    $("meta[property='article:published_time']").attr("content") ||
+    $("time[datetime]").first().attr("datetime") ||
+    $("meta[name='date']").attr("content") ||
+    undefined;
+
   if (!title || content.length < 40) return null;
-  return { title, url, content: content.slice(0, 3000), image };
+  return { title, url, content: content.slice(0, 5000), image, publishedAt };
 }
 
 export function isRssUrl(url: string): boolean {

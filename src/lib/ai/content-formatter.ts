@@ -1,10 +1,11 @@
 import { stripHtml } from "@/lib/utils/content";
 
 export const REQUIRED_SECTIONS = [
-  "Giriş",
+  "Özet",
   "Gelişmeler",
   "Detaylar",
-  "Etkileri",
+  "Uzman Değerlendirmeleri",
+  "Olası Etkiler",
   "Son Durum",
 ] as const;
 
@@ -57,7 +58,15 @@ export function ensureMinimumExcerpt(excerpt: string, content: string): string {
 }
 
 export function hasRequiredSections(html: string): boolean {
-  return REQUIRED_SECTIONS.every((s) =>
-    new RegExp(`<h2[^>]*>\\s*${s}\\s*<\\/h2>`, "i").test(html)
+  return REQUIRED_SECTIONS.filter((s) => s !== "Özet").every((s) =>
+    new RegExp(`<h2[^>]*>\\s*${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/h2>`, "i").test(html)
   );
+}
+
+export function isWithinLookbackDays(dateStr: string | undefined | null, days: number): boolean {
+  if (!dateStr) return true;
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return true;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return parsed.getTime() >= cutoff;
 }

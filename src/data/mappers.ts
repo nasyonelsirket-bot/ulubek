@@ -28,6 +28,8 @@ export function mapRawArticle(raw: RawArticle): ArticleWithRelations | null {
     excerpt: raw.excerpt,
     content: raw.content,
     image: raw.image,
+    imageSquare: raw.imageSquare ?? null,
+    imageStory: raw.imageStory ?? null,
     status: (raw.status ?? "PUBLISHED") as ArticleStatus,
     featured: raw.featured,
     breaking: raw.breaking,

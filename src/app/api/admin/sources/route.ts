@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     url: body.url,
     kind: (body.kind || "MANUAL") as SourceKind,
     fetchType: body.fetchType,
+    urlType: body.urlType,
     isActive: body.isActive ?? true,
     trustScore: body.trustScore ?? 0.8,
     categoryId: body.categoryId,

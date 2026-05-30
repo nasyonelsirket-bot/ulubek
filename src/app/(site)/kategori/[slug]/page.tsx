@@ -44,8 +44,8 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-8 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+    <div className="mx-auto max-w-7xl px-0 py-0 md:px-4 md:py-8">
+      <div className="mb-0 border-b border-border px-4 py-5 md:mb-8 md:rounded-xl md:border md:bg-white md:p-6 md:shadow-sm">
         <div className="flex items-center gap-3">
           <div
             className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white"
@@ -73,7 +73,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
             </div>
           )}
         </div>
-        <div className="lg:col-span-1">
+        <div className="hidden lg:col-span-1 lg:block">
           <Sidebar />
         </div>
       </div>

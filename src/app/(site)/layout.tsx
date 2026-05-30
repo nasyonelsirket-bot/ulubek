@@ -1,7 +1,7 @@
 import SiteHeader from "@/components/layout/SiteHeader";
 import Footer from "@/components/layout/Footer";
 import LiveNewsProvider from "@/components/live/LiveNewsProvider";
-import LiveBreakingTicker from "@/components/live/LiveBreakingTicker";
+import ConditionalBreakingTicker from "@/components/live/ConditionalBreakingTicker";
 import LiveBreakingAlert from "@/components/live/LiveBreakingAlert";
 import JsonLd from "@/components/seo/JsonLd";
 import { getBreakingNews } from "@/lib/services/articles";
@@ -39,7 +39,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <LiveNewsProvider initialBreaking={initialBreaking} websocketUrl={websocketUrl}>
       <JsonLd data={websiteSchema} />
       <SiteHeader />
-      <LiveBreakingTicker />
+      <ConditionalBreakingTicker />
       <LiveBreakingAlert />
       <main className="flex-1">{children}</main>
       <Footer />

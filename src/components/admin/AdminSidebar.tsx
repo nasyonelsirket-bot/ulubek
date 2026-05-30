@@ -7,11 +7,8 @@ import {
   Newspaper,
   LogOut,
   Rss,
-  ListOrdered,
-  ScanSearch,
-  Clock,
-  CheckCircle2,
   Sparkles,
+  Key,
   Search,
   ImageIcon,
   ScrollText,
@@ -22,15 +19,12 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/queue", label: "Haber Kuyruğu", icon: ListOrdered },
-  { href: "/admin/scanned", label: "Taranan Haberler", icon: ScanSearch },
-  { href: "/admin/pending", label: "Yayın Bekleyenler", icon: Clock },
-  { href: "/admin/published", label: "Yayınlananlar", icon: CheckCircle2 },
   { href: "/admin/articles", label: "Haberler", icon: Newspaper },
   { href: "/admin/sources", label: "Kaynak Yönetimi", icon: Rss },
   { href: "/admin/ai", label: "AI Ayarları", icon: Sparkles },
-  { href: "/admin/seo", label: "SEO Yönetimi", icon: Search },
+  { href: "/admin/api-keys", label: "API Anahtarları", icon: Key },
   { href: "/admin/images", label: "Görsel Yönetimi", icon: ImageIcon },
+  { href: "/admin/seo", label: "SEO Yönetimi", icon: Search },
   { href: "/admin/logs", label: "Sistem Logları", icon: ScrollText },
 ];
 
@@ -53,17 +47,14 @@ export default function AdminSidebar() {
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active =
-            pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+          const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
                 "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-red-50 text-red-600"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                active ? "bg-red-50 text-red-600" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />

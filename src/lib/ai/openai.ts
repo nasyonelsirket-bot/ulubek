@@ -7,42 +7,45 @@ import {
   ensureMinimumExcerpt,
   hasRequiredSections,
 } from "./content-formatter";
+import { getOpenAIKey, getSettings } from "@/lib/settings/store";
 
 let client: OpenAI | null = null;
-
-const MIN_CONTENT_WORDS = 800;
-const MIN_EXCERPT_WORDS = 150;
+let cachedKey = "";
 
 function getClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAIKey();
   if (!apiKey) return null;
-  if (!client) client = new OpenAI({ apiKey });
+  if (!client || cachedKey !== apiKey) {
+    client = new OpenAI({ apiKey });
+    cachedKey = apiKey;
+  }
   return client;
 }
 
 export function isOpenAIAvailable(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+  return !!getOpenAIKey();
 }
 
 async function expandContentIfNeeded(
   openai: OpenAI,
   title: string,
-  content: string
+  content: string,
+  minWords: number
 ): Promise<string> {
-  if (countWords(content) >= MIN_CONTENT_WORDS && hasRequiredSections(content)) {
+  if (countWords(content) >= minWords && hasRequiredSections(content)) {
     return content;
   }
 
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const settings = getSettings();
   const response = await openai.chat.completions.create({
-    model,
+    model: settings.openaiModel,
     temperature: 0.4,
-    max_tokens: 8000,
+    max_tokens: 12000,
     messages: [
       {
         role: "system",
         content:
-          "Sen haber editörüsün. Verilen haber metnini 800-1500 kelimeye genişlet. Zorunlu H2 bölümleri: Giriş, Gelişmeler, Detaylar, Etkileri, Son Durum. Sadece HTML döndür.",
+          "Sen haber editörüsün. Metni minimum 1200 kelimeye genişlet. H2: Özet, Gelişmeler, Detaylar, Uzman Değerlendirmeleri, Olası Etkiler, Son Durum. Sadece HTML döndür.",
       },
       { role: "user", content: buildExpansionPrompt(title, content) },
     ],
@@ -55,16 +58,14 @@ async function expandContentIfNeeded(
 
 export async function processWithOpenAI(input: AIProcessInput): Promise<AIProcessedResult> {
   const openai = getClient();
-  if (!openai) {
-    throw new Error("OPENAI_API_KEY tanımlı değil");
-  }
+  if (!openai) throw new Error("OpenAI API anahtarı tanımlı değil");
 
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const settings = getSettings();
 
   const response = await openai.chat.completions.create({
-    model,
+    model: settings.openaiModel,
     temperature: 0.4,
-    max_tokens: 8000,
+    max_tokens: 12000,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildSystemPrompt(input.categories) },
@@ -84,20 +85,15 @@ export async function processWithOpenAI(input: AIProcessInput): Promise<AIProces
   if (!raw) throw new Error("AI yanıt vermedi");
 
   const parsed = JSON.parse(raw) as AIProcessedResult;
-
   if (!parsed.title || !parsed.content || !parsed.categorySlug) {
     throw new Error("AI yanıtı eksik alanlar içeriyor");
   }
 
   let content = enrichArticleHtml(parsed.content);
-  content = await expandContentIfNeeded(openai, parsed.title, content);
+  content = await expandContentIfNeeded(openai, parsed.title, content, settings.minWordCount);
 
   let excerpt = (parsed.excerpt || "").trim();
   excerpt = ensureMinimumExcerpt(excerpt, content);
-
-  if (countWords(excerpt) < MIN_EXCERPT_WORDS) {
-    excerpt = ensureMinimumExcerpt("", content);
-  }
 
   return {
     title: parsed.title.trim(),

@@ -1,12 +1,13 @@
 import Parser from "rss-parser";
-import type { MockSource, SourceFetchType } from "@/data/types";
-import { processWithOpenAI, isOpenAIAvailable } from "@/lib/ai/openai";
-import { processWithLocalEngine } from "@/lib/ai/local-engine";
+import type { MockSource, SourceFetchType, SourceUrlType } from "@/data/types";
+import { processArticleWithAI } from "@/lib/ai/engine";
 import { categories } from "@/data/categories";
 import { slugify } from "@/lib/utils/slug";
 import { calcReadTime } from "@/lib/utils/content";
-import { generateNewsImage } from "./image";
+import { resolveArticleImage } from "./resolve-image";
 import { matchCategory, getCategoryIdBySlug } from "./category-matcher";
+import { isWithinLookbackDays } from "@/lib/ai/content-formatter";
+import { getSettings } from "@/lib/settings/store";
 import {
   checkContentBeforePublish,
   buildExistingArticleIndex,
@@ -60,6 +61,14 @@ interface FeedItem {
   title: string;
   link: string;
   content: string;
+  publishedAt?: string;
+  sourceImage?: string;
+}
+
+function resolveUrlType(source: MockSource): SourceUrlType {
+  if (source.urlType) return source.urlType;
+  if (resolveFetchType(source) === "RSS") return "RSS";
+  return "SITE";
 }
 
 function shouldFetchSource(source: MockSource, force: boolean, respectInterval: boolean): boolean {
@@ -136,31 +145,62 @@ export async function processSingleSource(sourceId: string): Promise<PipelineRes
   return summary.sources[0] ?? null;
 }
 
+function extractRssImage(item: Record<string, unknown>): string | undefined {
+  const enclosure = item.enclosure as { url?: string; type?: string } | undefined;
+  if (enclosure?.url && (enclosure.type?.startsWith("image/") || /\.(jpg|jpeg|png|webp)/i.test(enclosure.url))) {
+    return enclosure.url;
+  }
+  const media = item["media:content"] as { $?: { url?: string } } | undefined;
+  if (media?.$?.url) return media.$.url;
+  const thumb = item["media:thumbnail"] as { $?: { url?: string } } | undefined;
+  if (thumb?.$?.url) return thumb.$.url;
+  const content = String(item.content || item["content:encoded"] || "");
+  const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match?.[1];
+}
+
 async function fetchItemsFromSource(source: MockSource): Promise<FeedItem[]> {
-  const fetchType = resolveFetchType(source);
+  const settings = getSettings();
+  const lookback = settings.scanLookbackDays;
+  const urlType = resolveUrlType(source);
 
-  if (fetchType === "WEB") {
-    const links = await scrapeWebsite(source.url, 10);
-    const items: FeedItem[] = [];
-
-    for (const link of links.slice(0, 6)) {
-      if (isUrlInQueue(link.url)) continue;
-      const detail = await scrapeArticlePage(link.url);
-      items.push({
-        title: detail?.title || link.title,
-        link: link.url,
-        content: detail?.content || link.content,
-      });
-    }
-    return items;
+  if (urlType === "ARTICLE") {
+    const detail = await scrapeArticlePage(source.url);
+    if (!detail) return [];
+    if (detail.publishedAt && !isWithinLookbackDays(detail.publishedAt, lookback)) return [];
+    return [{ title: detail.title, link: detail.url, content: detail.content, publishedAt: detail.publishedAt, sourceImage: detail.image }];
   }
 
-  const feed = await parser.parseURL(source.url);
-  return (feed.items ?? []).slice(0, 6).map((item) => ({
-    title: item.title?.trim() || "",
-    link: item.link || item.guid || "",
-    content: item.contentSnippet || item.content || item.summary || item.title || "",
-  }));
+  if (urlType === "RSS" || resolveFetchType(source) === "RSS") {
+    const feed = await parser.parseURL(source.url);
+    return (feed.items ?? [])
+      .filter((item) => isWithinLookbackDays(item.pubDate || item.isoDate, lookback))
+      .slice(0, 8)
+      .map((item) => ({
+        title: item.title?.trim() || "",
+        link: item.link || item.guid || "",
+        content: item.contentSnippet || item.content || item.summary || item.title || "",
+        publishedAt: item.pubDate || item.isoDate,
+        sourceImage: extractRssImage(item as Record<string, unknown>),
+      }));
+  }
+
+  const links = await scrapeWebsite(source.url, 12);
+  const items: FeedItem[] = [];
+
+  for (const link of links.slice(0, 8)) {
+    if (isUrlInQueue(link.url)) continue;
+    const detail = await scrapeArticlePage(link.url);
+    if (detail?.publishedAt && !isWithinLookbackDays(detail.publishedAt, lookback)) continue;
+    items.push({
+      title: detail?.title || link.title,
+      link: link.url,
+      content: detail?.content || link.content,
+      publishedAt: detail?.publishedAt,
+      sourceImage: detail?.image,
+    });
+  }
+  return items;
 }
 
 async function processSource(source: MockSource): Promise<PipelineResult> {
@@ -226,14 +266,7 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
       try {
         updateQueueItem(queueEntry.id, { status: "PENDING" });
 
-        const aiResult = isOpenAIAvailable()
-          ? await processWithOpenAI({
-              title,
-              content: rawContent,
-              categories: categoryList,
-              sourceName: source.name,
-            })
-          : await processWithLocalEngine({
+        const aiResult = await processArticleWithAI({
               title,
               content: rawContent,
               categories: categoryList,
@@ -259,17 +292,26 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
         }
 
         const categorySlug = aiResult.categorySlug || matchCategory(title, rawContent, source.categoryId);
-        const imageResult = await generateNewsImage(aiResult.title, categorySlug);
+        const articleId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const imageResult = await resolveArticleImage({
+          title: aiResult.title,
+          categorySlug,
+          sourceImageUrl: item.sourceImage,
+          articleId,
+          breaking: aiResult.breaking,
+        });
         const slug = uniqueSlug(aiResult.title);
 
         const article: RawArticle = {
-          id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: articleId,
           title: aiResult.title,
           slug,
           excerpt: aiResult.excerpt,
           content: aiResult.content,
           categoryId: getCategoryIdBySlug(categorySlug),
           image: imageResult.url,
+          imageSquare: imageResult.urlSquare,
+          imageStory: imageResult.urlStory,
           publishedAt: new Date().toISOString(),
           readTime: calcReadTime(aiResult.content),
           featured: source.trustScore >= 0.9,
@@ -289,7 +331,7 @@ async function processSource(source: MockSource): Promise<PipelineResult> {
         updateQueueItem(queueEntry.id, {
           status: "PUBLISHED",
           articleId: article.id,
-          imagePrompt: imageResult.prompt,
+          imagePrompt: `[${imageResult.provider}] ${imageResult.prompt}`,
         });
         void notifyArticlePublished(article.id);
         result.imported++;

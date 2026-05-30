@@ -1,4 +1,5 @@
 import ArticleCard from "./ArticleCard";
+import MobileArticleCard from "./MobileArticleCard";
 
 interface ArticleGridProps {
   articles: Array<{
@@ -22,10 +23,17 @@ export default function ArticleGrid({ articles, columns = 3 }: ArticleGridProps)
   };
 
   return (
-    <div className={`grid grid-cols-1 gap-6 ${gridCols[columns]}`}>
-      {articles.map((article) => (
-        <ArticleCard key={article.id} article={article} />
-      ))}
-    </div>
+    <>
+      <div className="flex flex-col md:hidden">
+        {articles.map((article, i) => (
+          <MobileArticleCard key={article.id} article={article} priority={i < 2} />
+        ))}
+      </div>
+      <div className={`hidden gap-6 md:grid ${gridCols[columns]}`}>
+        {articles.map((article) => (
+          <ArticleCard key={article.id} article={article} />
+        ))}
+      </div>
+    </>
   );
 }

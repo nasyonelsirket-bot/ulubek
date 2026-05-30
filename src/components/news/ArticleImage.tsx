@@ -25,6 +25,7 @@ export default function ArticleImage({
 }: ArticleImageProps) {
   const imageSrc = src?.trim() || generatePlaceholderCover(alt, categorySlug);
   const isDataUri = imageSrc.startsWith("data:");
+  const isLocalMedia = imageSrc.startsWith("/api/media/");
 
   return (
     <Image
@@ -32,8 +33,9 @@ export default function ArticleImage({
       alt={alt}
       fill={fill}
       priority={priority}
-      unoptimized={isDataUri}
-      className={cn("object-cover", className)}
+      quality={90}
+      unoptimized={isDataUri || isLocalMedia}
+      className={cn("object-cover transition-transform duration-300", className)}
       sizes={sizes ?? "(max-width: 768px) 100vw, 33vw"}
     />
   );

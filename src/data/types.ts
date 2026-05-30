@@ -8,6 +8,8 @@ export type SourceKind = "RSS" | "MINISTRY" | "MANUAL";
 
 export type SourceFetchType = "RSS" | "WEB";
 
+export type SourceUrlType = "SITE" | "CATEGORY" | "ARTICLE" | "RSS";
+
 export interface Category {
   id: string;
   name: string;
@@ -25,6 +27,8 @@ export interface RawArticle {
   content: string;
   categoryId: string;
   image: string;
+  imageSquare?: string;
+  imageStory?: string;
   publishedAt: string;
   updatedAt?: string;
   readTime: number;
@@ -46,6 +50,8 @@ export interface ArticleWithRelations {
   excerpt: string | null;
   content: string;
   image: string | null;
+  imageSquare?: string | null;
+  imageStory?: string | null;
   status: ArticleStatus;
   featured: boolean;
   breaking: boolean;
@@ -87,6 +93,7 @@ export interface MockSource {
   type: SourceType;
   kind?: SourceKind;
   fetchType?: SourceFetchType;
+  urlType?: SourceUrlType;
   isActive: boolean;
   trustScore: number;
   categoryId: string;

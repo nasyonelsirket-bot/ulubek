@@ -7,13 +7,17 @@ import {
 } from "@/lib/ai-engine/store";
 import { getPipelineLogs, getLastRunAt, getTotalImportedCount } from "@/lib/ai-engine/pipeline-log";
 import { getQueueStats } from "@/lib/ai-engine/queue";
+import { getPublicSettings } from "@/lib/settings/store";
+import { getActiveAIProvider } from "@/lib/ai/engine";
+import { isGeminiAvailable } from "@/lib/ai/gemini";
 import { isOpenAIAvailable } from "@/lib/ai/openai";
 import { runAutoNewsPipeline, processSingleSource } from "@/lib/ai-engine/pipeline";
-import type { MockSource, SourceKind, SourceFetchType } from "@/data/types";
+import type { MockSource, SourceKind, SourceFetchType, SourceUrlType } from "@/data/types";
 
 export async function getEngineStats() {
   const sources = getAllSourcesFromStore();
   const logs = getPipelineLogs();
+  const settings = getPublicSettings();
 
   return {
     totalSources: sources.length,
@@ -21,16 +25,21 @@ export async function getEngineStats() {
     totalImported: getTotalImportedCount(),
     lastRunAt: getLastRunAt(),
     openAiEnabled: isOpenAIAvailable(),
-    cronIntervalMin: 1,
+    geminiEnabled: isGeminiAvailable(),
+    activeProvider: getActiveAIProvider(),
+    aiProvider: settings.aiProvider,
+    imageProvider: settings.imageProvider,
+    scanIntervalMin: settings.scanIntervalMin,
+    scanLookbackDays: settings.scanLookbackDays,
     features: [
-      "Web sitesi tarama (URL)",
+      "Web sitesi / kategori / haber URL tarama",
       "RSS tarama (opsiyonel)",
-      "AI özgünleştirme",
-      "SEO başlık & meta",
-      "AI kapak görseli",
-      "Kopya kontrolü",
-      "Spam filtresi",
-      "Otomatik yayın",
+      "OpenAI + Gemini motor seçimi",
+      "1200+ kelime haber üretimi",
+      "SEO + OG + Twitter Card",
+      "AI kapak görseli (1200x675)",
+      "10 gün geriye tarama",
+      "1 dk tarama aralığı",
     ],
     recentLogs: logs.slice(0, 15),
   };
@@ -86,12 +95,14 @@ export async function addSource(data: {
   type?: string;
   kind?: SourceKind;
   fetchType?: SourceFetchType;
+  urlType?: SourceUrlType;
   isActive?: boolean;
   trustScore?: number;
   categoryId: string;
   fetchIntervalMin?: number;
 }): Promise<MockSource> {
   const fetchType = data.fetchType ?? (data.url.includes("rss") || data.url.endsWith(".xml") ? "RSS" : "WEB");
+  const urlType = data.urlType ?? (fetchType === "RSS" ? "RSS" : "SITE");
   const source: MockSource = {
     id: `src-${Date.now()}`,
     name: data.name,
@@ -99,6 +110,7 @@ export async function addSource(data: {
     type: "RSS",
     kind: data.kind ?? "MANUAL",
     fetchType,
+    urlType,
     isActive: data.isActive ?? true,
     trustScore: data.trustScore ?? 0.8,
     categoryId: data.categoryId,

@@ -9,6 +9,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   teknoloji: ["teknoloji", "yapay zeka", "ai", "yazılım", "apple", "google", "microsoft", "siber", "dijital", "mobil"],
   saglik: ["sağlık", "hastane", "doktor", "hastalık", "aşı", "tıp", "bakanlık sağlık", "tedavi", "virüs"],
   dunya: ["abd", "avrupa", "rusya", "çin", "bm", "nato", "ukrayna", "israil", "filistin", "uluslararası", "dünya"],
+  magazin: ["magazin", "ünlü", "dizi", "evlilik", "boşanma", "sosyal medya", "instagram", "sanatçı", "oyuncu"],
   "kultur-sanat": ["sinema", "film", "müzik", "kitap", "sanat", "tiyatro", "festival", "dizi", "konser", "yazar"],
 };
 
@@ -117,10 +118,20 @@ function expandToLongForm(title: string, rawContent: string): string {
     topic
   );
 
+  const expertEvaluations = padParagraphs(
+    [
+      `Uzmanlar, ${topic.toLowerCase()} gelişmelerinin detaylı analiz edilmesi gerektiğini belirtiyor.`,
+      `Analistler, sürecin farklı boyutlarının kamuoyu ve ilgili sektörler açısından yakından izlenmesi gerektiğini ifade ediyor.`,
+      `Gözlemciler, resmi açıklamaların ve bağımsız değerlendirmelerin birlikte ele alınmasının önemine dikkat çekiyor.`,
+    ],
+    4,
+    topic
+  );
+
   const impacts = padParagraphs(
     [
       `Analistler, ${topic.toLowerCase()} gelişmelerinin kısa vadede ilgili sektörler ve kamuoyu üzerinde etkili olabileceğini ifade ediyor.`,
-      `Uzman görüşlerine göre sürecin uzun vadeli sonuçları, atılacak adımlara ve tarafların yaklaşımına bağlı olarak şekillenecek.`,
+      `Olası senaryolara göre sürecin uzun vadeli sonuçları, atılacak adımlara bağlı olarak şekillenecek.`,
       `Gözlemciler, olayın bölgesel ve ulusal düzeydeki yansımalarının yakından takip edilmesi gerektiğini vurguluyor.`,
     ],
     4,
@@ -138,16 +149,17 @@ function expandToLongForm(title: string, rawContent: string): string {
   );
 
   const sections = [
-    buildSectionHtml("Giriş", intro),
+    buildSectionHtml("Özet", intro),
     buildSectionHtml("Gelişmeler", developments),
     buildSectionHtml("Detaylar", details),
-    buildSectionHtml("Etkileri", impacts),
+    buildSectionHtml("Uzman Değerlendirmeleri", expertEvaluations),
+    buildSectionHtml("Olası Etkiler", impacts),
     buildSectionHtml("Son Durum", latest),
   ];
 
   let html = sections.join("");
 
-  while (countWords(html) < 800) {
+  while (countWords(html) < 1200) {
     const extra = padParagraphs([], 1, topic)[0];
     html += `<h2>Gelişmeler</h2><p>${extra}</p>`;
   }

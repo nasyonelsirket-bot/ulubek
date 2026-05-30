@@ -22,7 +22,12 @@ export interface EngineStatsData {
   totalImported: number;
   lastRunAt: string | null;
   openAiEnabled: boolean;
-  cronIntervalMin: number;
+  geminiEnabled?: boolean;
+  activeProvider?: string;
+  aiProvider?: string;
+  imageProvider?: string;
+  scanIntervalMin: number;
+  scanLookbackDays?: number;
   features: string[];
   recentLogs: Array<{
     id: string;
@@ -69,10 +74,10 @@ export default function SourceEngineDashboard({ initialStats }: SourceEngineDash
             <p className="text-xs font-medium uppercase text-muted-foreground">AI Motor</p>
             <p className="mt-1 flex items-center gap-2 text-lg font-bold">
               <Bot className="h-5 w-5" />
-              {stats.openAiEnabled ? "OpenAI" : "Yerel"}
+              {stats.activeProvider ?? (stats.openAiEnabled ? "openai" : "local")}
             </p>
-            <Badge variant={stats.openAiEnabled ? "default" : "secondary"} className="mt-1">
-              {stats.openAiEnabled ? "GPT Aktif" : "Mock AI"}
+            <Badge variant={stats.openAiEnabled || stats.geminiEnabled ? "default" : "secondary"} className="mt-1">
+              {stats.aiProvider ?? "openai"} / {stats.imageProvider ?? "openai"}
             </Badge>
           </CardContent>
         </Card>
@@ -81,9 +86,9 @@ export default function SourceEngineDashboard({ initialStats }: SourceEngineDash
             <p className="text-xs font-medium uppercase text-muted-foreground">Otomatik Tarama</p>
             <p className="mt-1 flex items-center gap-2 text-2xl font-bold">
               <Clock className="h-5 w-5 text-red-600" />
-              {stats.cronIntervalMin} dk
+              {stats.scanIntervalMin} dk
             </p>
-            <p className="text-xs text-muted-foreground">Cron /api/cron/auto-news</p>
+            <p className="text-xs text-muted-foreground">Son {stats.scanLookbackDays ?? 10} gün</p>
           </CardContent>
         </Card>
         <Card>

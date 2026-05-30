@@ -57,6 +57,14 @@ export const categories: Category[] = [
     color: "#db2777",
     sortOrder: 7,
   },
+  {
+    id: "8",
+    name: "Magazin",
+    slug: "magazin",
+    description: "Magazin, yaşam, ünlüler ve eğlence haberleri",
+    color: "#be185d",
+    sortOrder: 8,
+  },
 ];
 
 export function getCategoryById(id: string): Category | undefined {

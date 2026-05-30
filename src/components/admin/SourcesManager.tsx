@@ -36,7 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { MINISTRY_SOURCES } from "@/data/ministry-sources";
-import type { SourceKind, SourceFetchType } from "@/data/types";
+import type { SourceKind, SourceFetchType, SourceUrlType } from "@/data/types";
 import { formatDateTime } from "@/lib/utils/date";
 
 interface Category {
@@ -93,6 +93,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
     url: "",
     kind: "MANUAL" as SourceKind,
     fetchType: "WEB" as SourceFetchType,
+    urlType: "SITE" as SourceUrlType,
     categoryId: "",
     fetchIntervalMinutes: 1,
     trustScore: 0.8,
@@ -119,6 +120,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           url: form.url,
           kind: form.kind,
           fetchType: form.fetchType,
+          urlType: form.urlType,
           isActive: form.isActive,
           trustScore: form.trustScore,
           categoryId: form.categoryId || categories[0]?.id,
@@ -155,6 +157,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         url: "",
         kind: "MANUAL",
         fetchType: "WEB",
+        urlType: "SITE",
         categoryId: "",
         fetchIntervalMinutes: 1,
         trustScore: 0.8,
@@ -365,6 +368,25 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           <CardContent>
             <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
+                <Label>Kaynak URL Tipi</Label>
+                <Select
+                  value={form.urlType}
+                  onValueChange={(v) => {
+                    const urlType = v as SourceUrlType;
+                    const fetchType: SourceFetchType = urlType === "RSS" ? "RSS" : "WEB";
+                    setForm({ ...form, urlType, fetchType });
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SITE">Haber Sitesi URL</SelectItem>
+                    <SelectItem value="CATEGORY">Kategori URL</SelectItem>
+                    <SelectItem value="ARTICLE">Haber Sayfası URL</SelectItem>
+                    <SelectItem value="RSS">RSS Feed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="fetchType">Tarama Yöntemi</Label>
                 <Select
                   value={form.fetchType}
@@ -407,7 +429,13 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="url">
-                  {form.fetchType === "WEB" ? "Haber Sitesi URL" : "RSS Feed URL"}
+                  {form.urlType === "RSS"
+                    ? "RSS Feed URL"
+                    : form.urlType === "ARTICLE"
+                      ? "Haber Sayfası URL"
+                      : form.urlType === "CATEGORY"
+                        ? "Kategori URL"
+                        : "Haber Sitesi URL"}
                 </Label>
                 <Input
                   id="url"
