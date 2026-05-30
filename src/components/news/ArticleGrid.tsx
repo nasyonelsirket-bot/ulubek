@@ -1,5 +1,4 @@
-import ArticleCard from "./ArticleCard";
-import MobileArticleCard from "./MobileArticleCard";
+import { PortalArticleGrid } from "@/components/news/PortalArticleCard";
 
 interface ArticleGridProps {
   articles: Array<{
@@ -16,24 +15,12 @@ interface ArticleGridProps {
 }
 
 export default function ArticleGrid({ articles, columns = 3 }: ArticleGridProps) {
-  const gridCols = {
-    2: "md:grid-cols-2",
-    3: "md:grid-cols-2 lg:grid-cols-3",
-    4: "md:grid-cols-2 lg:grid-cols-4",
-  };
-
+  const colMap = { 2: 2 as const, 3: 3 as const, 4: 4 as const };
   return (
-    <>
-      <div className="flex flex-col md:hidden">
-        {articles.map((article, i) => (
-          <MobileArticleCard key={article.id} article={article} priority={i < 2} />
-        ))}
-      </div>
-      <div className={`hidden gap-6 md:grid ${gridCols[columns]}`}>
-        {articles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
-        ))}
-      </div>
-    </>
+    <PortalArticleGrid
+      articles={articles}
+      columns={colMap[columns]}
+      priorityCount={4}
+    />
   );
 }

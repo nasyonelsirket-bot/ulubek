@@ -1,12 +1,11 @@
 import { stripHtml } from "@/lib/utils/content";
 
 export const REQUIRED_SECTIONS = [
-  "Özet",
-  "Gelişmeler",
+  "Giriş",
   "Detaylar",
-  "Uzman Değerlendirmeleri",
-  "Olası Etkiler",
-  "Son Durum",
+  "Arka Plan",
+  "Uzman Yorumu",
+  "Sonuç",
 ] as const;
 
 export function countWords(text: string): number {
@@ -58,7 +57,7 @@ export function ensureMinimumExcerpt(excerpt: string, content: string): string {
 }
 
 export function hasRequiredSections(html: string): boolean {
-  return REQUIRED_SECTIONS.filter((s) => s !== "Özet").every((s) =>
+  return REQUIRED_SECTIONS.every((s) =>
     new RegExp(`<h2[^>]*>\\s*${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/h2>`, "i").test(html)
   );
 }

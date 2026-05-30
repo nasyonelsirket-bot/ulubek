@@ -43,6 +43,10 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
 
   if (partial.openaiApiKey === "") next.openaiApiKey = current.openaiApiKey;
   if (partial.geminiApiKey === "") next.geminiApiKey = current.geminiApiKey;
+  if (partial.twitterApiKey === "") next.twitterApiKey = current.twitterApiKey;
+  if (partial.twitterApiSecret === "") next.twitterApiSecret = current.twitterApiSecret;
+  if (partial.twitterBearerToken === "") next.twitterBearerToken = current.twitterBearerToken;
+  if (partial.instagramAccessToken === "") next.instagramAccessToken = current.instagramAccessToken;
 
   writeFileSync(
     SETTINGS_FILE,
@@ -67,6 +71,12 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
         coverTitleStyle: next.coverTitleStyle,
         coverBreakingTagEnabled: next.coverBreakingTagEnabled,
         coverLogoCustom: next.coverLogoCustom,
+        twitterApiKey: next.twitterApiKey,
+        twitterApiSecret: next.twitterApiSecret,
+        twitterBearerToken: next.twitterBearerToken,
+        twitterAccounts: next.twitterAccounts,
+        instagramAccessToken: next.instagramAccessToken,
+        instagramAccountId: next.instagramAccountId,
       },
       null,
       2
@@ -102,6 +112,11 @@ export function getPublicSettings(): PublicSettings {
     coverBreakingTagEnabled: s.coverBreakingTagEnabled,
     coverLogoCustom: s.coverLogoCustom,
     coverLogoUploaded: existsSync(CUSTOM_LOGO),
+    twitterKeyConfigured: !!s.twitterApiKey,
+    twitterBearerConfigured: !!s.twitterBearerToken,
+    instagramConfigured: !!s.instagramAccessToken,
+    twitterAccounts: s.twitterAccounts,
+    instagramAccountId: s.instagramAccountId,
   };
 }
 

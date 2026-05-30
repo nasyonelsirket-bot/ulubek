@@ -36,6 +36,12 @@ export async function PUT(request: NextRequest) {
   }
   if (typeof body.coverBreakingTagEnabled === "boolean") partial.coverBreakingTagEnabled = body.coverBreakingTagEnabled;
   if (typeof body.coverLogoCustom === "boolean") partial.coverLogoCustom = body.coverLogoCustom;
+  if (body.twitterApiKey?.trim()) partial.twitterApiKey = body.twitterApiKey.trim();
+  if (body.twitterApiSecret?.trim()) partial.twitterApiSecret = body.twitterApiSecret.trim();
+  if (body.twitterBearerToken?.trim()) partial.twitterBearerToken = body.twitterBearerToken.trim();
+  if (typeof body.twitterAccounts === "string") partial.twitterAccounts = body.twitterAccounts;
+  if (body.instagramAccessToken?.trim()) partial.instagramAccessToken = body.instagramAccessToken.trim();
+  if (typeof body.instagramAccountId === "string") partial.instagramAccountId = body.instagramAccountId.trim();
   if (body.openaiApiKey?.trim()) partial.openaiApiKey = body.openaiApiKey.trim();
   if (body.geminiApiKey?.trim()) partial.geminiApiKey = body.geminiApiKey.trim();
 

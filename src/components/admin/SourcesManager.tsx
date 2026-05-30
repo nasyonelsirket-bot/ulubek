@@ -36,6 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { MINISTRY_SOURCES } from "@/data/ministry-sources";
+import { PORTAL_NEWS_SOURCES } from "@/data/portal-sources";
 import type { SourceKind, SourceFetchType, SourceUrlType } from "@/data/types";
 import { formatDateTime } from "@/lib/utils/date";
 
@@ -165,6 +166,58 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       });
       setShowForm(false);
       setMessage("Kaynak başarıyla eklendi.");
+      router.refresh();
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function addPortalPreset(preset: (typeof PORTAL_NEWS_SOURCES)[0]) {
+    setLoading(`portal-${preset.name}`);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/admin/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: preset.name,
+          url: preset.url,
+          kind: preset.kind,
+          fetchType: preset.fetchType,
+          urlType: preset.urlType,
+          isActive: preset.isActive,
+          trustScore: preset.trustScore,
+          categoryId: preset.categoryId,
+          fetchIntervalMin: preset.fetchIntervalMin,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error || "Portal kaynağı eklenemedi");
+        return;
+      }
+
+      setSources((prev) => [
+        {
+          id: data.id,
+          name: data.name,
+          url: data.url,
+          type: data.type,
+          kind: data.kind,
+          isActive: data.isActive,
+          trustScore: data.trustScore,
+          fetchIntervalMinutes: data.fetchIntervalMin,
+          lastFetchedAt: null,
+          lastFetchError: null,
+          articlesFetched: 0,
+          category: categories.find((c) => c.id === data.categoryId) ?? null,
+          _count: { articles: 0 },
+        },
+        ...prev,
+      ]);
+      setMessage(`${preset.name} kaynağı eklendi.`);
       router.refresh();
     } finally {
       setLoading(null);
@@ -328,6 +381,37 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           Tümünü Tara (AI Motor)
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-4 w-4" />
+            Ulusal Haber Portalları — Hızlı Ekle
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-xs text-muted-foreground">
+            AI Web Scraper ile RSS olmadan taranır. Başlık, içerik, görsel ve kategori otomatik algılanır.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {PORTAL_NEWS_SOURCES.map((preset) => {
+              const exists = existingMinistryUrls.has(preset.url);
+              return (
+                <Button
+                  key={preset.url}
+                  variant="outline"
+                  size="sm"
+                  disabled={exists || loading === `portal-${preset.name}`}
+                  onClick={() => addPortalPreset(preset)}
+                >
+                  {exists ? "✓ " : "+ "}
+                  {preset.name}
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">

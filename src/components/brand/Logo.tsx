@@ -9,7 +9,7 @@ import { SITE_NAME, SITE_TAGLINE } from "@/lib/seo/config";
 export const LOGO_PATH = "/logo.png";
 
 const variants = {
-  header: { width: 520, height: 120, className: "logo-wrap" },
+  header: { width: 720, height: 160, className: "logo-wrap" },
   footer: { width: 320, height: 72, className: "h-14 w-auto object-contain md:h-16" },
   admin: { width: 220, height: 52, className: "h-11 w-auto object-contain" },
   login: { width: 480, height: 120, className: "h-24 w-auto object-contain md:h-28" },

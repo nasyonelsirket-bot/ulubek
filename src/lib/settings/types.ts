@@ -23,6 +23,12 @@ export interface AppSettings {
   coverTitleStyle: CoverTitleStyle;
   coverBreakingTagEnabled: boolean;
   coverLogoCustom: boolean;
+  twitterApiKey: string;
+  twitterApiSecret: string;
+  twitterBearerToken: string;
+  twitterAccounts: string;
+  instagramAccessToken: string;
+  instagramAccountId: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,8 +40,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   geminiModel: "gemini-2.0-flash",
   scanIntervalMin: 1,
   scanLookbackDays: 10,
-  minWordCount: 800,
-  targetWordCount: 1200,
+  minWordCount: 700,
+  targetWordCount: 1500,
   useSourceImage: true,
   useStockImage: true,
   useAiImage: true,
@@ -45,6 +51,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   coverTitleStyle: "bold",
   coverBreakingTagEnabled: true,
   coverLogoCustom: false,
+  twitterApiKey: "",
+  twitterApiSecret: "",
+  twitterBearerToken: "",
+  twitterAccounts: "",
+  instagramAccessToken: "",
+  instagramAccountId: "",
 };
 
 export interface PublicSettings {
@@ -70,4 +82,9 @@ export interface PublicSettings {
   coverBreakingTagEnabled: boolean;
   coverLogoCustom: boolean;
   coverLogoUploaded: boolean;
+  twitterKeyConfigured: boolean;
+  twitterBearerConfigured: boolean;
+  instagramConfigured: boolean;
+  twitterAccounts: string;
+  instagramAccountId: string;
 }

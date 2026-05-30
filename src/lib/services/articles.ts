@@ -29,6 +29,26 @@ export async function getPublishedArticles(limit?: number): Promise<ArticleWithR
   return mapRawArticles(limit ? raw.slice(0, limit) : raw);
 }
 
+export async function getPublishedArticlesPage(
+  page: number,
+  limit: number,
+  excludeIds: string[] = []
+): Promise<{ articles: ArticleWithRelations[]; hasMore: boolean; total: number }> {
+  const exclude = new Set(excludeIds);
+  const sorted = [...getMergedRaw()].sort(
+    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
+  const filtered = sorted.filter((a) => !exclude.has(a.id));
+  const offset = Math.max(0, (page - 1) * limit);
+  const slice = filtered.slice(offset, offset + limit);
+
+  return {
+    articles: mapRawArticles(slice),
+    hasMore: offset + limit < filtered.length,
+    total: filtered.length,
+  };
+}
+
 export async function getFeaturedArticles(): Promise<ArticleWithRelations[]> {
   return mapRawArticles(getMergedRaw().filter((a) => a.featured));
 }

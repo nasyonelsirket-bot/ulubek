@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Menu, Search, X, Zap } from "lucide-react";
 import Logo from "@/components/brand/Logo";
-import CategoryNav from "@/components/layout/CategoryNav";
+import TopMarketsBar from "@/components/layout/TopMarketsBar";
 import SearchBar from "@/components/ui/SearchBar";
-import ClientToday from "@/components/ui/ClientToday";
-import { Menu, X } from "lucide-react";
 import { PRIMARY_NAV_SLUGS } from "@/config/navigation";
+import { cn } from "@/lib/utils";
 
 interface Category {
   id: string;
@@ -20,61 +21,105 @@ interface HeaderProps {
 }
 
 export default function Header({ categories }: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navCategories = PRIMARY_NAV_SLUGS.map((slug) => categories.find((c) => c.slug === slug)).filter(
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navItems = PRIMARY_NAV_SLUGS.map((slug) => categories.find((c) => c.slug === slug)).filter(
     Boolean
   ) as Category[];
 
   return (
-    <header className="sticky top-0 z-50 bg-white shadow-md">
-      <div className="border-b border-border bg-secondary">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-3 py-1 text-xs text-muted-foreground">
-          <ClientToday />
-          <div className="hidden items-center gap-4 sm:flex">
-            <Link href="/hakkimizda" className="font-medium hover:text-primary">Hakkımızda</Link>
-            <Link href="/iletisim" className="font-medium hover:text-primary">İletişim</Link>
-          </div>
-        </div>
-      </div>
+    <header className="sticky top-0 z-50 border-b border-border bg-white shadow-sm">
+      <TopMarketsBar />
 
-      <div className="mx-auto max-w-[1400px] px-3 py-2">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto max-w-[1400px] px-3">
+        <div className="flex h-[72px] items-center gap-4 md:h-[76px] lg:gap-6">
           <Logo variant="header" priority />
-          <div className="ml-auto hidden w-52 xl:block">
-            <SearchBar compact />
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto flex h-10 w-10 items-center justify-center rounded border border-border lg:hidden"
-            aria-label="Menü"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
 
-      <CategoryNav categories={categories} />
+          <nav className="hidden flex-1 items-center justify-center gap-0.5 lg:flex" aria-label="Kategoriler">
+            {navItems.map((cat) => {
+              const active = pathname === `/kategori/${cat.slug}`;
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/kategori/${cat.slug}`}
+                  className={cn(
+                    "font-headline px-2.5 py-1.5 text-[13px] font-bold uppercase tracking-wide transition-colors xl:px-3 xl:text-sm",
+                    active ? "text-primary" : "text-[var(--navy)] hover:text-primary"
+                  )}
+                >
+                  {cat.name}
+                </Link>
+              );
+            })}
+          </nav>
 
-      {mobileMenuOpen && (
-        <nav className="border-t border-border bg-white lg:hidden">
-          <div className="space-y-0.5 px-3 py-2">
-            <SearchBar />
-            <Link href="/#son-dakika" className="block rounded bg-primary px-3 py-2 text-sm font-bold text-white">
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/arama"
+              className="hidden h-9 w-9 items-center justify-center rounded-md border border-border text-[var(--navy)] transition-colors hover:border-primary hover:text-primary sm:flex lg:hidden"
+              aria-label="Ara"
+            >
+              <Search className="h-4 w-4" />
+            </Link>
+            <div className="hidden w-44 xl:block">
+              <SearchBar compact />
+            </div>
+            <Link
+              href="/#son-dakika"
+              className="hidden items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-primary/90 sm:flex"
+            >
+              <Zap className="h-3.5 w-3.5" />
               Son Dakika
             </Link>
-            {navCategories.map((cat) => (
+            <button
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-border lg:hidden"
+              aria-label="Menü"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <nav className="border-t border-border bg-secondary/60 lg:hidden" aria-label="Mobil kategoriler">
+        <div className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-3 py-1.5 scrollbar-none">
+          <Link
+            href="/#son-dakika"
+            className="shrink-0 rounded bg-primary px-2.5 py-1 text-[11px] font-bold uppercase text-white"
+          >
+            Son Dakika
+          </Link>
+          {navItems.map((cat) => (
+            <Link
+              key={cat.id}
+              href={`/kategori/${cat.slug}`}
+              className="font-headline shrink-0 rounded px-2.5 py-1 text-[11px] font-bold uppercase text-[var(--navy)] hover:bg-white"
+            >
+              {cat.name}
+            </Link>
+          ))}
+        </div>
+      </nav>
+
+      {mobileOpen && (
+        <div className="border-t border-border bg-white px-3 py-3 lg:hidden">
+          <SearchBar />
+          <div className="mt-2 grid grid-cols-2 gap-1">
+            {navItems.map((cat) => (
               <Link
                 key={cat.id}
                 href={`/kategori/${cat.slug}`}
-                className="font-headline block rounded px-3 py-2 font-bold uppercase text-[var(--navy)] hover:bg-accent"
-                onClick={() => setMobileMenuOpen(false)}
+                className="font-headline rounded border border-border px-3 py-2 text-sm font-bold text-[var(--navy)]"
+                onClick={() => setMobileOpen(false)}
               >
                 {cat.name}
               </Link>
             ))}
           </div>
-        </nav>
+        </div>
       )}
     </header>
   );

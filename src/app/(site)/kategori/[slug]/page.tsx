@@ -2,10 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArticleGrid from "@/components/news/ArticleGrid";
 import Sidebar from "@/components/layout/Sidebar";
-import {
-  getCategoryBySlug,
-  getArticlesByCategorySlug,
-} from "@/lib/services/articles";
+import { getCategoryBySlug, getArticlesByCategorySlug } from "@/lib/services/articles";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 
 interface CategoryPageProps {
@@ -27,7 +24,6 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
-
   if (!category) notFound();
 
   const articles = await getArticlesByCategorySlug(slug);
@@ -44,36 +40,34 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-0 py-0 md:px-4 md:py-8">
-      <div className="mb-0 border-b border-border px-4 py-5 md:mb-8 md:rounded-xl md:border md:bg-white md:p-6 md:shadow-sm">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white"
-            style={{ backgroundColor: category.color }}
-          >
-            {category.name[0]}
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{category.name}</h1>
-            {category.description && (
-              <p className="mt-1 text-gray-600">{category.description}</p>
-            )}
-          </div>
+    <div className="mx-auto max-w-[1400px] px-3 py-5">
+      <div className="portal-section-head mb-6 flex items-center gap-3">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-white"
+          style={{ backgroundColor: category.color }}
+        >
+          {category.name[0]}
         </div>
-        <p className="mt-4 text-sm text-gray-500">{articles.length} haber bulundu</p>
+        <div>
+          <h1 className="font-headline text-2xl font-bold text-[var(--navy)] md:text-3xl">{category.name}</h1>
+          {category.description && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{category.description}</p>
+          )}
+        </div>
+        <span className="ml-auto text-sm text-muted-foreground">{articles.length} haber</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-9">
           {articles.length > 0 ? (
-            <ArticleGrid articles={mapped} columns={2} />
+            <ArticleGrid articles={mapped} columns={3} />
           ) : (
-            <div className="rounded-xl bg-white p-12 text-center shadow-sm ring-1 ring-gray-100">
-              <p className="text-gray-500">Bu kategoride henüz haber bulunmuyor.</p>
+            <div className="rounded-lg border border-border bg-white p-12 text-center">
+              <p className="text-muted-foreground">Bu kategoride henüz haber bulunmuyor.</p>
             </div>
           )}
         </div>
-        <div className="hidden lg:col-span-1 lg:block">
+        <div className="hidden lg:col-span-3 lg:block">
           <Sidebar />
         </div>
       </div>
