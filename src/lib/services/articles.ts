@@ -1,136 +1,123 @@
-import { ArticleStatus, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { categories, getCategoryBySlug as getDataCategoryBySlug } from "@/data/categories";
+import {
+  getAllRawArticles,
+  getRawArticleById,
+  getRawArticleBySlug,
+} from "@/data/articles";
+import { getBreakingNewsArticles } from "@/data/breaking-news";
+import { mapRawArticle, mapRawArticles } from "@/data/mappers";
+import type { ArticleWithRelations } from "@/data/types";
+import { NEWS_SITEMAP_MAX_AGE_HOURS } from "@/lib/seo/config";
 
-const articleInclude = {
-  category: true,
-  tags: { include: { tag: true } },
-  source: true,
-} satisfies Prisma.ArticleInclude;
+export type { ArticleWithRelations } from "@/data/types";
 
-export type ArticleWithRelations = Prisma.ArticleGetPayload<{ include: typeof articleInclude }>;
+const publishedFilter = (article: ReturnType<typeof getAllRawArticles>[number]) =>
+  (article.status ?? "PUBLISHED") === "PUBLISHED";
 
-const publishedFilter = { status: ArticleStatus.PUBLISHED };
+function getPublishedRaw() {
+  return getAllRawArticles().filter(publishedFilter);
+}
 
 export async function getPublishedArticles(limit?: number): Promise<ArticleWithRelations[]> {
-  return prisma.article.findMany({
-    where: publishedFilter,
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-    ...(limit ? { take: limit } : {}),
-  });
+  const raw = getPublishedRaw();
+  return mapRawArticles(limit ? raw.slice(0, limit) : raw);
 }
 
 export async function getFeaturedArticles(): Promise<ArticleWithRelations[]> {
-  return prisma.article.findMany({
-    where: { ...publishedFilter, featured: true },
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-  });
+  return mapRawArticles(getPublishedRaw().filter((a) => a.featured));
 }
 
 export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
-  return prisma.article.findMany({
-    where: { ...publishedFilter, breaking: true },
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-  });
+  return mapRawArticles(getBreakingNewsArticles());
 }
 
 export async function getArticleBySlug(slug: string): Promise<ArticleWithRelations | null> {
-  return prisma.article.findFirst({
-    where: { slug, status: ArticleStatus.PUBLISHED },
-    include: articleInclude,
-  });
+  const raw = getRawArticleBySlug(slug);
+  if (!raw || !publishedFilter(raw)) return null;
+  return mapRawArticle(raw);
 }
 
-export async function getArticlesByCategorySlug(categorySlug: string): Promise<ArticleWithRelations[]> {
-  return prisma.article.findMany({
-    where: { ...publishedFilter, category: { slug: categorySlug } },
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-  });
+export async function getArticlesByCategorySlug(
+  categorySlug: string
+): Promise<ArticleWithRelations[]> {
+  const category = getDataCategoryBySlug(categorySlug);
+  if (!category) return [];
+  return mapRawArticles(getPublishedRaw().filter((a) => a.categoryId === category.id));
 }
 
 export async function getRelatedArticles(articleId: string, categoryId: string, limit = 4) {
-  return prisma.article.findMany({
-    where: {
-      ...publishedFilter,
-      categoryId,
-      id: { not: articleId },
-    },
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-    take: limit,
-  });
+  return mapRawArticles(
+    getPublishedRaw()
+      .filter((a) => a.categoryId === categoryId && a.id !== articleId)
+      .slice(0, limit)
+  );
 }
 
 export async function searchPublishedArticles(query: string): Promise<ArticleWithRelations[]> {
-  const q = query.trim();
+  const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  return prisma.article.findMany({
-    where: {
-      ...publishedFilter,
-      OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { excerpt: { contains: q, mode: "insensitive" } },
-        { tags: { some: { tag: { name: { contains: q, mode: "insensitive" } } } } },
-      ],
-    },
-    include: articleInclude,
-    orderBy: { publishedAt: "desc" },
-  });
+  return mapRawArticles(
+    getPublishedRaw().filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        a.excerpt.toLowerCase().includes(q) ||
+        a.tags.some((t) => t.toLowerCase().includes(q))
+    )
+  );
 }
 
 export async function getAllCategories() {
-  return prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+  return [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export async function getCategoryBySlug(slug: string) {
-  return prisma.category.findUnique({ where: { slug } });
+  return getDataCategoryBySlug(slug) ?? null;
 }
 
 export async function getAllArticleSlugs() {
-  return prisma.article.findMany({
-    where: publishedFilter,
-    select: { slug: true },
-  });
+  return getPublishedRaw().map((a) => ({ slug: a.slug }));
 }
 
 export async function getAllCategorySlugs() {
-  return prisma.category.findMany({ select: { slug: true } });
+  return categories.map((c) => ({ slug: c.slug }));
 }
 
 export async function getArticlesForSitemap() {
-  return prisma.article.findMany({
-    where: publishedFilter,
-    select: { slug: true, updatedAt: true, publishedAt: true },
-    orderBy: { publishedAt: "desc" },
-  });
+  return getPublishedRaw().map((a) => ({
+    slug: a.slug,
+    updatedAt: new Date(a.updatedAt ?? a.publishedAt),
+    publishedAt: new Date(a.publishedAt),
+  }));
 }
 
 export async function getCategoriesForSitemap() {
-  return prisma.category.findMany({
-    select: { slug: true, updatedAt: true },
-    orderBy: { sortOrder: "asc" },
-  });
+  return categories.map((c) => ({
+    slug: c.slug,
+    updatedAt: new Date(),
+  }));
 }
 
-export async function getArticlesForNewsSitemap(maxAgeHours = 48) {
-  const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+export async function getArticlesForNewsSitemap(maxAgeHours = NEWS_SITEMAP_MAX_AGE_HOURS) {
+  const since = Date.now() - maxAgeHours * 60 * 60 * 1000;
 
-  return prisma.article.findMany({
-    where: {
-      ...publishedFilter,
-      publishedAt: { gte: since },
-    },
-    select: {
-      slug: true,
-      title: true,
-      metaTitle: true,
-      publishedAt: true,
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 1000,
-  });
+  return getPublishedRaw()
+    .filter((a) => new Date(a.publishedAt).getTime() >= since)
+    .slice(0, 1000)
+    .map((a) => ({
+      slug: a.slug,
+      title: a.title,
+      metaTitle: a.metaTitle ?? null,
+      publishedAt: new Date(a.publishedAt),
+    }));
+}
+
+export async function getArticleById(id: string): Promise<ArticleWithRelations | null> {
+  const raw = getRawArticleById(id);
+  if (!raw) return null;
+  return mapRawArticle(raw);
+}
+
+export async function getAllArticlesForAdmin(): Promise<ArticleWithRelations[]> {
+  return mapRawArticles(getAllRawArticles());
 }

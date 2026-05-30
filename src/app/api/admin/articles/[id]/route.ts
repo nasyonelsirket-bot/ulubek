@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ArticleStatus } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { getArticleById } from "@/lib/services/articles";
+import { mockUpdateArticle } from "@/lib/services/admin";
 import { notifyArticlePublished } from "@/lib/live/notify";
 
 export async function GET(
@@ -14,15 +14,7 @@ export async function GET(
   }
 
   const { id } = await params;
-
-  const article = await prisma.article.findUnique({
-    where: { id },
-    include: {
-      category: true,
-      tags: { include: { tag: true } },
-      source: true,
-    },
-  });
+  const article = await getArticleById(id);
 
   if (!article) {
     return NextResponse.json({ error: "Haber bulunamadı" }, { status: 404 });
@@ -43,34 +35,21 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
-  const existing = await prisma.article.findUnique({
-    where: { id },
-    select: { status: true, breaking: true },
-  });
+  const existing = await getArticleById(id);
+  if (!existing) {
+    return NextResponse.json({ error: "Haber bulunamadı" }, { status: 404 });
+  }
 
-  const article = await prisma.article.update({
-    where: { id },
-    data: {
-      ...(body.title !== undefined && { title: body.title }),
-      ...(body.excerpt !== undefined && { excerpt: body.excerpt }),
-      ...(body.content !== undefined && { content: body.content }),
-      ...(body.image !== undefined && { image: body.image }),
-      ...(body.status !== undefined && { status: body.status }),
-      ...(body.featured !== undefined && { featured: body.featured }),
-      ...(body.breaking !== undefined && { breaking: body.breaking }),
-      ...(body.categoryId !== undefined && { categoryId: body.categoryId }),
-      ...(body.readTime !== undefined && { readTime: body.readTime }),
-    },
-    include: { category: true, tags: { include: { tag: true } } },
-  });
+  const article = await mockUpdateArticle(id, body);
+  if (!article) {
+    return NextResponse.json({ error: "Haber bulunamadı" }, { status: 404 });
+  }
 
-  const becamePublished =
-    article.status === ArticleStatus.PUBLISHED &&
-    existing?.status !== ArticleStatus.PUBLISHED;
+  const becamePublished = article.status === "PUBLISHED" && existing.status !== "PUBLISHED";
   const breakingChanged =
-    body.breaking !== undefined && body.breaking !== existing?.breaking;
+    body.breaking !== undefined && body.breaking !== existing.breaking;
 
-  if (becamePublished || (article.status === ArticleStatus.PUBLISHED && breakingChanged)) {
+  if (becamePublished || (article.status === "PUBLISHED" && breakingChanged)) {
     void notifyArticlePublished(article.id);
   }
 
@@ -86,8 +65,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  const { id } = await params;
-  await prisma.article.delete({ where: { id } });
+  await params;
 
   return NextResponse.json({ success: true });
 }

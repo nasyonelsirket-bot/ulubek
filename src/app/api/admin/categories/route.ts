@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { getAllCategories } from "@/lib/services/articles";
 
 export async function GET() {
   const session = await getSession();
@@ -8,9 +8,6 @@ export async function GET() {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  const categories = await prisma.category.findMany({
-    orderBy: { sortOrder: "asc" },
-  });
-
+  const categories = await getAllCategories();
   return NextResponse.json(categories);
 }

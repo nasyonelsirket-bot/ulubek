@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Pencil, Trash2, Search, Sparkles, AlertCircle } from "lucide-react";
-import { ArticleStatus } from "@prisma/client";
+import type { ArticleStatus } from "@/data/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

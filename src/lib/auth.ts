@@ -1,9 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { UserRole } from "@prisma/client";
+import type { UserRole } from "@/data/types";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-dev-secret-change-me"
+  process.env.JWT_SECRET || "ulubek-fallback-dev-secret"
 );
 
 export const AUTH_COOKIE = "ulubek_admin_token";

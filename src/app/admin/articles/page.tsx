@@ -1,13 +1,8 @@
-import { prisma } from "@/lib/prisma";
+import { getAllArticlesForAdmin } from "@/lib/services/articles";
 import ArticlesTable from "@/components/admin/ArticlesTable";
 
 export default async function AdminArticlesPage() {
-  const articles = await prisma.article.findMany({
-    include: {
-      category: { select: { name: true, color: true } },
-    },
-    orderBy: { publishedAt: "desc" },
-  });
+  const articles = await getAllArticlesForAdmin();
 
   const serialized = articles.map((a) => ({
     id: a.id,
@@ -19,7 +14,7 @@ export default async function AdminArticlesPage() {
     publishedAt: a.publishedAt.toISOString(),
     aiProcessed: a.aiProcessed,
     aiProcessingError: a.aiProcessingError,
-    category: a.category,
+    category: { name: a.category.name, color: a.category.color },
   }));
 
   return (
@@ -27,7 +22,7 @@ export default async function AdminArticlesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Haber Yönetimi</h1>
         <p className="text-sm text-muted-foreground">
-          Haberleri düzenleyin, gizleyin veya silin
+          Haberleri düzenleyin, gizleyin veya silin (mock veri)
         </p>
       </div>
       <ArticlesTable initialArticles={serialized} />

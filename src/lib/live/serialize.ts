@@ -6,7 +6,7 @@ interface ArticleLike {
   slug: string;
   excerpt?: string | null;
   image?: string | null;
-  publishedAt: Date;
+  publishedAt: Date | string;
   readTime: number;
   breaking: boolean;
   featured: boolean;
@@ -24,7 +24,10 @@ export function serializeLiveArticle(article: ArticleLike): LiveArticle {
     slug: article.slug,
     excerpt: article.excerpt,
     image: article.image,
-    publishedAt: article.publishedAt.toISOString(),
+    publishedAt:
+      typeof article.publishedAt === "string"
+        ? article.publishedAt
+        : article.publishedAt.toISOString(),
     readTime: article.readTime,
     breaking: article.breaking,
     featured: article.featured,

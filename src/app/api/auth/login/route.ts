@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { validateAdminCredentials } from "@/data/admin-user";
 import { AUTH_COOKIE, signToken } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
@@ -11,14 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "E-posta ve şifre gerekli" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = validateAdminCredentials(email, password);
 
-    if (!user || !user.isActive) {
-      return NextResponse.json({ error: "Geçersiz kimlik bilgileri" }, { status: 401 });
-    }
-
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
+    if (!user) {
       return NextResponse.json({ error: "Geçersiz kimlik bilgileri" }, { status: 401 });
     }
 

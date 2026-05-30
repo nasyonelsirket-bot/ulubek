@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getArticleById, getAllCategories } from "@/lib/services/articles";
 import ArticleEditForm from "@/components/admin/ArticleEditForm";
 
 interface PageProps {
@@ -10,8 +10,8 @@ export default async function AdminArticleEditPage({ params }: PageProps) {
   const { id } = await params;
 
   const [article, categories] = await Promise.all([
-    prisma.article.findUnique({ where: { id } }),
-    prisma.category.findMany({ orderBy: { sortOrder: "asc" } }),
+    getArticleById(id),
+    getAllCategories(),
   ]);
 
   if (!article) notFound();
@@ -22,7 +22,22 @@ export default async function AdminArticleEditPage({ params }: PageProps) {
         <h1 className="text-2xl font-bold">Haber Düzenle</h1>
         <p className="text-sm text-muted-foreground">{article.slug}</p>
       </div>
-      <ArticleEditForm article={article} categories={categories} />
+      <ArticleEditForm
+        article={{
+          id: article.id,
+          title: article.title,
+          slug: article.slug,
+          excerpt: article.excerpt,
+          content: article.content,
+          image: article.image,
+          status: article.status,
+          featured: article.featured,
+          breaking: article.breaking,
+          readTime: article.readTime,
+          categoryId: article.categoryId,
+        }}
+        categories={categories}
+      />
     </div>
   );
 }

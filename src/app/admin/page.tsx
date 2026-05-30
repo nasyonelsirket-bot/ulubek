@@ -1,16 +1,8 @@
-import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Newspaper, Eye, Rss, Sparkles } from "lucide-react";
-import ProcessPendingButton from "@/components/admin/ProcessPendingButton";
+import { getAdminDashboardStats } from "@/lib/services/admin";
+import { Eye, Newspaper, Rss, Sparkles } from "lucide-react";
 
 export default async function AdminDashboard() {
-  const [total, published, rssSources, pendingAI, lastFetch] = await Promise.all([
-    prisma.article.count(),
-    prisma.article.count({ where: { status: "PUBLISHED" } }),
-    prisma.source.count({ where: { isActive: true, type: "RSS" } }),
-    prisma.article.count({ where: { aiProcessed: false, status: "DRAFT" } }),
-    prisma.rssFetchLog.findFirst({ orderBy: { createdAt: "desc" } }),
-  ]);
+  const { total, published, rssSources, pendingAI, lastFetch } = await getAdminDashboardStats();
 
   const stats = [
     { label: "Toplam Haber", value: total, icon: Newspaper, color: "text-blue-600" },
@@ -21,30 +13,34 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Ulubek Medya yönetim paneli (mock veri)</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.label}
-                </CardTitle>
+            <div key={stat.label} className="rounded-xl border bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
                 <Icon className={`h-4 w-4 ${stat.color}`} />
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{stat.value}</p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="mt-2 text-3xl font-bold">{stat.value}</p>
+            </div>
           );
         })}
       </div>
-      <ProcessPendingButton pendingCount={pendingAI} />
+
       {lastFetch && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Son RSS taraması: {lastFetch.createdAt.toLocaleString("tr-TR")} — {lastFetch.message}
-        </p>
+        <div className="mt-8 rounded-xl border bg-white p-5 shadow-sm">
+          <h2 className="font-semibold">Son RSS Taraması (Mock)</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {lastFetch.createdAt.toLocaleString("tr-TR")} — {lastFetch.status} —{" "}
+            {lastFetch.itemsImported} haber içe aktarıldı
+          </p>
+        </div>
       )}
     </div>
   );
