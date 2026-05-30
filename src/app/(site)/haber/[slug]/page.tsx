@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { Clock, User } from "lucide-react";
 import {
   getArticleBySlug,
   getRelatedArticles,
@@ -12,7 +13,8 @@ import { getSiteUrl } from "@/lib/seo/config";
 import JsonLd from "@/components/seo/JsonLd";
 import ShareButtons from "@/components/news/ShareButtons";
 import RelatedArticles from "@/components/news/RelatedArticles";
-import Sidebar from "@/components/layout/Sidebar";
+import TableOfContents from "@/components/news/TableOfContents";
+import AgendaBox from "@/components/home/AgendaBox";
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>;
@@ -37,14 +39,12 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
   if (!article) return { title: "Haber Bulunamadı" };
-
   return buildArticleMetadata(toSeoInput(article));
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
-
   if (!article) notFound();
 
   const relatedArticles = await getRelatedArticles(article.id, article.categoryId);
@@ -52,102 +52,124 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const seoInput = toSeoInput(article);
   const tags = seoInput.tags;
   const jsonLd = buildNewsArticleSchema(seoInput);
+  const authorName = "Ulubek Medya Editör";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <>
       <JsonLd data={jsonLd} />
-      <article className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-            {article.image && (
-              <div className="relative aspect-[16/9]">
-                <Image
-                  src={article.image}
-                  alt={article.title}
-                  fill
-                  className="object-cover"
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 66vw"
-                />
+
+      {/* Kapak görseli — tam genişlik */}
+      {article.image && (
+        <div className="relative aspect-[21/9] max-h-[520px] w-full overflow-hidden bg-secondary">
+          <Image
+            src={article.image}
+            alt={article.title}
+            fill
+            className="object-cover"
+            priority
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+        </div>
+      )}
+
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          {/* Ana içerik */}
+          <article className="lg:col-span-8">
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <span
+                className="rounded px-3 py-1 text-xs font-bold uppercase tracking-wider text-white"
+                style={{ backgroundColor: article.category.color }}
+              >
+                {article.category.name}
+              </span>
+              {article.breaking && (
+                <span className="rounded bg-primary px-2 py-0.5 text-xs font-bold uppercase text-primary-foreground">
+                  Son Dakika
+                </span>
+              )}
+            </div>
+
+            <h1 className="text-3xl font-black leading-tight text-foreground md:text-5xl md:leading-[1.15]">
+              {article.title}
+            </h1>
+
+            {article.excerpt && (
+              <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">{article.excerpt}</p>
+            )}
+
+            {/* Yazar + meta */}
+            <div className="mt-6 flex flex-wrap items-center gap-4 border-y border-border py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                  <User className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{authorName}</p>
+                  {article.source && (
+                    <p className="text-xs text-muted-foreground">Kaynak: {article.source.name}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <time dateTime={article.publishedAt.toISOString()}>
+                  {formatDateTime(article.publishedAt.toISOString())}
+                </time>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  {article.readTime} dk okuma
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="prose-content mt-8 max-w-none text-base md:text-lg"
+              dangerouslySetInnerHTML={{ __html: article.content }}
+            />
+
+            {tags.length > 0 && (
+              <div className="mt-8 flex flex-wrap gap-2 border-t border-border pt-6">
+                {tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-sm text-muted-foreground">
+                    #{tag}
+                  </span>
+                ))}
               </div>
             )}
 
-            <div className="p-6 md:p-8">
-              <div className="mb-4 flex flex-wrap items-center gap-3">
-                <span
-                  className="inline-block rounded-md px-3 py-1 text-sm font-semibold uppercase text-white"
-                  style={{ backgroundColor: article.category.color }}
-                >
-                  {article.category.name}
-                </span>
-                {article.breaking && (
-                  <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold uppercase text-white">
-                    Son Dakika
-                  </span>
-                )}
-              </div>
-
-              <h1 className="text-2xl font-bold leading-tight text-gray-900 md:text-4xl">
-                {article.title}
-              </h1>
-
-              {article.excerpt && (
-                <p className="mt-4 text-lg leading-relaxed text-gray-600">{article.excerpt}</p>
-              )}
-
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-y border-gray-100 py-4">
-                {article.source && (
-                  <p className="text-sm text-gray-500">
-                    Kaynak: <span className="font-medium text-gray-700">{article.source.name}</span>
-                  </p>
-                )}
-                <div className="text-sm text-gray-500">
-                  <time dateTime={article.publishedAt.toISOString()}>
-                    {formatDateTime(article.publishedAt.toISOString())}
-                  </time>
-                  <span className="mx-2">·</span>
-                  <span>{article.readTime} dk okuma</span>
-                </div>
-              </div>
-
-              <div
-                className="prose-content mt-8 text-base md:text-lg"
-                dangerouslySetInnerHTML={{ __html: article.content }}
-              />
-
-              {tags.length > 0 && (
-                <div className="mt-8 flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <span key={tag} className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-600">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-8 border-t border-gray-100 pt-6">
-                <ShareButtons title={article.title} url={`${siteUrl}/haber/${article.slug}`} />
-              </div>
+            <div className="mt-8 border-t border-border pt-6">
+              <ShareButtons title={article.title} url={`${siteUrl}/haber/${article.slug}`} />
             </div>
-          </div>
 
-          <RelatedArticles
-            articles={relatedArticles.map((a) => ({
-              id: a.id,
-              title: a.title,
-              slug: a.slug,
-              image: a.image,
-              publishedAt: a.publishedAt,
-              readTime: a.readTime,
-              category: a.category,
-            }))}
-          />
-        </div>
+            <RelatedArticles
+              articles={relatedArticles.map((a) => ({
+                id: a.id,
+                title: a.title,
+                slug: a.slug,
+                image: a.image,
+                publishedAt: a.publishedAt,
+                readTime: a.readTime,
+                category: a.category,
+              }))}
+            />
+          </article>
 
-        <div className="lg:col-span-1">
-          <Sidebar />
+          {/* Sidebar */}
+          <aside className="space-y-6 lg:col-span-4">
+            <TableOfContents content={article.content} />
+            <AgendaBox
+              items={relatedArticles.slice(0, 5).map((a) => ({
+                id: a.id,
+                title: a.title,
+                slug: a.slug,
+                publishedAt: a.publishedAt,
+                category: { name: a.category.name, color: a.category.color },
+              }))}
+            />
+          </aside>
         </div>
-      </article>
-    </div>
+      </div>
+    </>
   );
 }

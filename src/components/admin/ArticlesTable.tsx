@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Pencil, Trash2, Search, Sparkles, AlertCircle } from "lucide-react";
 import type { ArticleStatus } from "@/data/types";
+import { formatDate } from "@/lib/utils/date";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,7 +222,7 @@ export default function ArticlesTable({ initialArticles }: ArticlesTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(article.publishedAt).toLocaleDateString("tr-TR")}
+                    {formatDate(article.publishedAt)}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">

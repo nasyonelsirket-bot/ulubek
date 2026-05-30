@@ -1,34 +1,32 @@
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("tr-TR", {
+export const APP_TIMEZONE = "Europe/Istanbul";
+
+export function toIsoString(date: string | Date): string {
+  return typeof date === "string" ? date : date.toISOString();
+}
+
+export function formatDate(dateString: string | Date): string {
+  const date = typeof dateString === "string" ? new Date(dateString) : dateString;
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: APP_TIMEZONE,
     day: "numeric",
     month: "long",
     year: "numeric",
-  });
+  }).format(date);
 }
 
-export function formatDateTime(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("tr-TR", {
+export function formatDateTime(dateString: string | Date): string {
+  const date = typeof dateString === "string" ? new Date(dateString) : dateString;
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: APP_TIMEZONE,
     day: "numeric",
     month: "long",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(date);
 }
 
-export function getRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMinutes < 1) return "Az önce";
-  if (diffMinutes < 60) return `${diffMinutes} dakika önce`;
-  if (diffHours < 24) return `${diffHours} saat önce`;
-  if (diffDays < 7) return `${diffDays} gün önce`;
+/** SSR/client-safe static date — "now" kullanmaz */
+export function formatDateStable(dateString: string | Date): string {
   return formatDate(dateString);
 }

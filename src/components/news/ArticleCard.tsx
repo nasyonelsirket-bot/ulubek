@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import RelativeTime from "@/components/ui/RelativeTime";
 
 interface CategoryInfo {
   name: string;
@@ -33,21 +34,6 @@ function CategoryBadgeInline({ category }: { category: CategoryInfo }) {
   );
 }
 
-function getRelativeTime(dateString: string | Date): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMinutes < 1) return "Az önce";
-  if (diffMinutes < 60) return `${diffMinutes} dakika önce`;
-  if (diffHours < 24) return `${diffHours} saat önce`;
-  if (diffDays < 7) return `${diffDays} gün önce`;
-  return date.toLocaleDateString("tr-TR");
-}
-
 export default function ArticleCard({ article, variant = "default" }: ArticleCardProps) {
   if (variant === "horizontal") {
     return (
@@ -70,7 +56,7 @@ export default function ArticleCard({ article, variant = "default" }: ArticleCar
               {article.title}
             </h3>
           </Link>
-          <time className="mt-1 text-xs text-gray-500">{getRelativeTime(article.publishedAt)}</time>
+          <RelativeTime date={article.publishedAt} className="mt-1 text-xs text-gray-500" />
         </div>
       </article>
     );
@@ -84,7 +70,7 @@ export default function ArticleCard({ article, variant = "default" }: ArticleCar
             {article.title}
           </h3>
         </Link>
-        <time className="mt-1 block text-xs text-gray-500">{getRelativeTime(article.publishedAt)}</time>
+        <RelativeTime date={article.publishedAt} className="mt-1 block text-xs text-gray-500" />
       </article>
     );
   }
@@ -117,7 +103,7 @@ export default function ArticleCard({ article, variant = "default" }: ArticleCar
           <p className="mt-2 line-clamp-2 text-sm text-gray-600">{article.excerpt}</p>
         )}
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-          <time>{getRelativeTime(article.publishedAt)}</time>
+          <RelativeTime date={article.publishedAt} />
           <span>{article.readTime} dk okuma</span>
         </div>
       </div>

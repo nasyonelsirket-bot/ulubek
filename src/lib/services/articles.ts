@@ -6,33 +6,46 @@ import {
 } from "@/data/articles";
 import { getBreakingNewsArticles } from "@/data/breaking-news";
 import { mapRawArticle, mapRawArticles } from "@/data/mappers";
-import type { ArticleWithRelations } from "@/data/types";
+import { getAllArticlesFromStore } from "@/lib/ai-engine/store";
+import type { ArticleWithRelations, RawArticle } from "@/data/types";
 import { NEWS_SITEMAP_MAX_AGE_HOURS } from "@/lib/seo/config";
 
 export type { ArticleWithRelations } from "@/data/types";
 
-const publishedFilter = (article: ReturnType<typeof getAllRawArticles>[number]) =>
+const publishedFilter = (article: RawArticle) =>
   (article.status ?? "PUBLISHED") === "PUBLISHED";
 
-function getPublishedRaw() {
-  return getAllRawArticles().filter(publishedFilter);
+function getMergedRaw(): RawArticle[] {
+  try {
+    return getAllArticlesFromStore().filter(publishedFilter);
+  } catch {
+    return getAllRawArticles().filter(publishedFilter);
+  }
 }
 
 export async function getPublishedArticles(limit?: number): Promise<ArticleWithRelations[]> {
-  const raw = getPublishedRaw();
+  const raw = getMergedRaw();
   return mapRawArticles(limit ? raw.slice(0, limit) : raw);
 }
 
 export async function getFeaturedArticles(): Promise<ArticleWithRelations[]> {
-  return mapRawArticles(getPublishedRaw().filter((a) => a.featured));
+  return mapRawArticles(getMergedRaw().filter((a) => a.featured));
 }
 
 export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
-  return mapRawArticles(getBreakingNewsArticles());
+  const breaking = getBreakingNewsArticles();
+  const merged = getMergedRaw().filter((a) => a.breaking);
+  const ids = new Set(merged.map((a) => a.id));
+  const combined = [...merged];
+  for (const b of breaking) {
+    if (!ids.has(b.id)) combined.push(b);
+  }
+  return mapRawArticles(combined);
 }
 
 export async function getArticleBySlug(slug: string): Promise<ArticleWithRelations | null> {
-  const raw = getRawArticleBySlug(slug);
+  const fromStore = getMergedRaw().find((a) => a.slug === slug);
+  const raw = fromStore ?? getRawArticleBySlug(slug);
   if (!raw || !publishedFilter(raw)) return null;
   return mapRawArticle(raw);
 }
@@ -42,12 +55,12 @@ export async function getArticlesByCategorySlug(
 ): Promise<ArticleWithRelations[]> {
   const category = getDataCategoryBySlug(categorySlug);
   if (!category) return [];
-  return mapRawArticles(getPublishedRaw().filter((a) => a.categoryId === category.id));
+  return mapRawArticles(getMergedRaw().filter((a) => a.categoryId === category.id));
 }
 
 export async function getRelatedArticles(articleId: string, categoryId: string, limit = 4) {
   return mapRawArticles(
-    getPublishedRaw()
+    getMergedRaw()
       .filter((a) => a.categoryId === categoryId && a.id !== articleId)
       .slice(0, limit)
   );
@@ -58,7 +71,7 @@ export async function searchPublishedArticles(query: string): Promise<ArticleWit
   if (!q) return [];
 
   return mapRawArticles(
-    getPublishedRaw().filter(
+    getMergedRaw().filter(
       (a) =>
         a.title.toLowerCase().includes(q) ||
         a.excerpt.toLowerCase().includes(q) ||
@@ -76,7 +89,7 @@ export async function getCategoryBySlug(slug: string) {
 }
 
 export async function getAllArticleSlugs() {
-  return getPublishedRaw().map((a) => ({ slug: a.slug }));
+  return getMergedRaw().map((a) => ({ slug: a.slug }));
 }
 
 export async function getAllCategorySlugs() {
@@ -84,7 +97,7 @@ export async function getAllCategorySlugs() {
 }
 
 export async function getArticlesForSitemap() {
-  return getPublishedRaw().map((a) => ({
+  return getMergedRaw().map((a) => ({
     slug: a.slug,
     updatedAt: new Date(a.updatedAt ?? a.publishedAt),
     publishedAt: new Date(a.publishedAt),
@@ -101,7 +114,7 @@ export async function getCategoriesForSitemap() {
 export async function getArticlesForNewsSitemap(maxAgeHours = NEWS_SITEMAP_MAX_AGE_HOURS) {
   const since = Date.now() - maxAgeHours * 60 * 60 * 1000;
 
-  return getPublishedRaw()
+  return getMergedRaw()
     .filter((a) => new Date(a.publishedAt).getTime() >= since)
     .slice(0, 1000)
     .map((a) => ({
@@ -113,11 +126,15 @@ export async function getArticlesForNewsSitemap(maxAgeHours = NEWS_SITEMAP_MAX_A
 }
 
 export async function getArticleById(id: string): Promise<ArticleWithRelations | null> {
-  const raw = getRawArticleById(id);
+  const raw = getMergedRaw().find((a) => a.id === id) ?? getRawArticleById(id);
   if (!raw) return null;
   return mapRawArticle(raw);
 }
 
 export async function getAllArticlesForAdmin(): Promise<ArticleWithRelations[]> {
-  return mapRawArticles(getAllRawArticles());
+  try {
+    return mapRawArticles(getAllArticlesFromStore());
+  } catch {
+    return mapRawArticles(getAllRawArticles());
+  }
 }

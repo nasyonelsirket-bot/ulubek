@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { sources } from "@/data/sources";
+import { fetchAllSources } from "@/lib/services/admin";
 
 export async function POST() {
   const session = await getSession();
@@ -8,13 +8,10 @@ export async function POST() {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  const results = sources.map((source) => ({
-    success: true,
-    sourceId: source.id,
-    itemsFound: 5,
-    itemsImported: 2,
-    duplicates: 3,
-  }));
-
-  return NextResponse.json({ results });
+  const summary = await fetchAllSources();
+  return NextResponse.json({
+    ...summary,
+    created: summary.imported,
+    results: summary.sources,
+  });
 }

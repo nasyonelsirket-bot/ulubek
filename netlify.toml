@@ -8,3 +8,6 @@ NODE_VERSION = "20"
 # publish/base burada TANIMLANMAMALI (Netlify UI'da da boş bırakın).
 [[plugins]]
 package = "@netlify/plugin-nextjs"
+
+[functions]
+  directory = "netlify/functions"

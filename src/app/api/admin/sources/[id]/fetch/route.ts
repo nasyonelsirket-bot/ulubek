@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { mockFetchSource } from "@/lib/services/admin";
+import { fetchSingleSource } from "@/lib/services/admin";
 
 export async function POST(
   _request: NextRequest,
@@ -12,7 +12,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const result = await mockFetchSource(id);
+  const result = await fetchSingleSource(id);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 404 });

@@ -53,7 +53,7 @@ export default async function Footer() {
         </div>
 
         <div className="mt-10 border-t border-gray-800 pt-6 text-center text-sm text-gray-500">
-          <p>&copy; {currentYear} Ulubek Medya. Tüm hakları saklıdır.</p>
+          <p suppressHydrationWarning>&copy; {currentYear} Ulubek Medya. Tüm hakları saklıdır.</p>
         </div>
       </div>
     </footer>

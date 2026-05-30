@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI engine runtime (persisted on server, not in repo)
+/data/runtime/*.json

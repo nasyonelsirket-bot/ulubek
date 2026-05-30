@@ -10,9 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import type { LiveArticle, LiveEvent } from "@/lib/live/types";
+import { isWebSocketUrlEnabled, sanitizeWebSocketUrl } from "@/lib/live/config";
 
 interface LiveNewsContextValue {
   connected: boolean;
+  wsEnabled: boolean;
   breakingNews: LiveArticle[];
   latestNews: LiveArticle[];
   newBreakingId: string | null;
@@ -34,15 +36,16 @@ export function useLiveNewsOptional() {
 
 interface LiveNewsProviderProps {
   initialBreaking: LiveArticle[];
+  websocketUrl?: string | null;
   children: ReactNode;
 }
 
-function getWsUrl(): string {
-  if (typeof window === "undefined") return "";
-  return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001/live";
-}
-
-export default function LiveNewsProvider({ initialBreaking, children }: LiveNewsProviderProps) {
+export default function LiveNewsProvider({
+  initialBreaking,
+  websocketUrl = null,
+  children,
+}: LiveNewsProviderProps) {
+  const wsEnabled = isWebSocketUrlEnabled(websocketUrl);
   const [connected, setConnected] = useState(false);
   const [breakingNews, setBreakingNews] = useState<LiveArticle[]>(initialBreaking);
   const [latestNews, setLatestNews] = useState<LiveArticle[]>([]);
@@ -89,7 +92,7 @@ export default function LiveNewsProvider({ initialBreaking, children }: LiveNews
   );
 
   const connect = useCallback(() => {
-    const url = getWsUrl();
+    const url = sanitizeWebSocketUrl(websocketUrl);
     if (!url) return;
 
     try {
@@ -117,21 +120,24 @@ export default function LiveNewsProvider({ initialBreaking, children }: LiveNews
     } catch {
       reconnectTimer.current = setTimeout(connect, 5000);
     }
-  }, [handleEvent]);
+  }, [handleEvent, websocketUrl]);
 
   useEffect(() => {
+    if (!wsEnabled) return;
+
     connect();
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (breakingFlashTimer.current) clearTimeout(breakingFlashTimer.current);
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [connect, wsEnabled]);
 
   return (
     <LiveNewsContext.Provider
       value={{
         connected,
+        wsEnabled,
         breakingNews,
         latestNews,
         newBreakingId,

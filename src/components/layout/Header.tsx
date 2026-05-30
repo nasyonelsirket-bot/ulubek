@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import Logo from "@/components/brand/Logo";
 import SearchBar from "@/components/ui/SearchBar";
+import ClientToday from "@/components/ui/ClientToday";
+import ThemeToggle from "@/components/theme/ThemeToggle";
+import LiveConnectedBadge from "@/components/live/LiveConnectedBadge";
+import { useLiveNews } from "@/components/live/LiveNewsProvider";
+import { Menu, X } from "lucide-react";
 
 interface Category {
   id: string;
@@ -15,76 +20,137 @@ interface HeaderProps {
   categories: Category[];
 }
 
+const PRIMARY_NAV = ["gundem", "ekonomi", "teknoloji", "dunya", "spor", "saglik"];
+
 export default function Header({ categories }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { breakingNews } = useLiveNews();
 
-  const today = new Date().toLocaleDateString("tr-TR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const navCategories = PRIMARY_NAV.map((slug) => categories.find((c) => c.slug === slug)).filter(
+    Boolean
+  ) as Category[];
 
   return (
-    <header className="sticky top-0 z-50 bg-white shadow-sm">
-      <div className="border-b border-gray-100 bg-gray-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5 text-xs text-gray-500">
-          <time>{today}</time>
+    <header className="sticky top-0 z-50 border-b border-border bg-card/95 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
+      {/* Üst şerit */}
+      <div className="border-b border-border bg-secondary/40">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5 text-xs text-muted-foreground">
+          <ClientToday />
           <div className="hidden items-center gap-4 sm:flex">
-            <Link href="/hakkimizda" className="hover:text-red-600">Hakkımızda</Link>
-            <Link href="/iletisim" className="hover:text-red-600">İletişim</Link>
+            <Link href="/hakkimizda" className="transition-colors hover:text-primary">
+              Hakkımızda
+            </Link>
+            <Link href="/iletisim" className="transition-colors hover:text-primary">
+              İletişim
+            </Link>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <Logo variant="header" priority />
-          <div className="hidden flex-1 justify-center md:flex">
-            <SearchBar />
+      {/* Ana header — logo sol, menü orta, ara/son dakika sağ */}
+      <div className="mx-auto max-w-7xl px-4 py-2 md:py-2.5">
+        <div className="flex items-center gap-3 lg:gap-6">
+          {/* Logo — büyük, şeffaf zemin */}
+          <div className="relative shrink-0 py-0.5">
+            <Logo variant="header" priority />
           </div>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 md:hidden"
-            aria-label="Menüyü aç"
+
+          {/* Masaüstü navigasyon — ortada */}
+          <nav
+            className="hidden flex-1 items-center justify-center gap-0.5 lg:flex"
+            aria-label="Ana menü"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {mobileMenuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <Link
+              href="/"
+              className="shrink-0 rounded-md px-3 py-2 text-sm font-bold text-foreground transition-colors hover:bg-accent hover:text-primary"
+            >
+              Ana Sayfa
+            </Link>
+            {navCategories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/kategori/${category.slug}`}
+                className="shrink-0 rounded-md px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+              >
+                {category.name}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Sağ aksiyonlar */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 md:gap-3">
+            <Link
+              href="/#son-dakika"
+              className="hidden items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-red-700 md:flex"
+            >
+              <LiveConnectedBadge variant="header" />
+              Son Dakika
+              {breakingNews.length > 0 && (
+                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
+                  {breakingNews.length}
+                </span>
               )}
-            </svg>
-          </button>
+            </Link>
+
+            <div className="hidden w-44 xl:block xl:w-52">
+              <SearchBar compact />
+            </div>
+
+            <ThemeToggle />
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border lg:hidden"
+              aria-label="Menü"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
-        <div className="mt-4 md:hidden">
+
+        {/* Tablet arama */}
+        <div className="mt-2 hidden md:block xl:hidden">
           <SearchBar />
         </div>
       </div>
 
-      <nav className="border-t border-gray-100">
-        <div className="mx-auto max-w-7xl px-4">
-          <ul className={`flex flex-col gap-1 py-2 md:flex-row md:items-center md:gap-0 md:overflow-x-auto md:py-0 ${mobileMenuOpen ? "block" : "hidden md:flex"}`}>
-            <li>
-              <Link href="/" className="block rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-red-50 hover:text-red-600 md:rounded-none md:border-b-2 md:border-transparent md:hover:border-red-600 md:hover:bg-transparent">
-                Ana Sayfa
+      {/* Mobil menü */}
+      {mobileMenuOpen && (
+        <nav className="border-t border-border bg-card lg:hidden" aria-label="Mobil menü">
+          <div className="mx-auto max-w-7xl space-y-1 px-4 py-3">
+            <div className="mb-3 md:hidden">
+              <SearchBar />
+            </div>
+            <Link
+              href="/#son-dakika"
+              className="mb-2 flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2.5 text-sm font-bold text-white"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Son Dakika
+              {breakingNews.length > 0 && ` (${breakingNews.length})`}
+            </Link>
+            <Link
+              href="/"
+              className="block rounded-lg px-3 py-2.5 font-bold hover:bg-accent"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Ana Sayfa
+            </Link>
+            {navCategories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/kategori/${category.slug}`}
+                className="block rounded-lg px-3 py-2.5 font-medium text-muted-foreground hover:bg-accent"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {category.name}
               </Link>
-            </li>
-            {categories.map((category) => (
-              <li key={category.id}>
-                <Link
-                  href={`/kategori/${category.slug}`}
-                  className="block rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-red-50 hover:text-red-600 md:rounded-none md:border-b-2 md:border-transparent md:hover:border-red-600 md:hover:bg-transparent"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {category.name}
-                </Link>
-              </li>
             ))}
-          </ul>
-        </div>
-      </nav>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

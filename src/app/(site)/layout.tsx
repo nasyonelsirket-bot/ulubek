@@ -6,6 +6,7 @@ import LiveBreakingAlert from "@/components/live/LiveBreakingAlert";
 import JsonLd from "@/components/seo/JsonLd";
 import { getBreakingNews } from "@/lib/services/articles";
 import { serializeLiveArticle } from "@/lib/live/serialize";
+import { getWebSocketClientUrl } from "@/lib/live/config.server";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/config";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const breaking = await getBreakingNews();
   const initialBreaking = breaking.map(serializeLiveArticle);
+  const websocketUrl = getWebSocketClientUrl();
   const siteUrl = getSiteUrl();
 
   const websiteSchema = {
@@ -34,7 +36,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   };
 
   return (
-    <LiveNewsProvider initialBreaking={initialBreaking}>
+    <LiveNewsProvider initialBreaking={initialBreaking} websocketUrl={websocketUrl}>
       <JsonLd data={websiteSchema} />
       <SiteHeader />
       <LiveBreakingTicker />

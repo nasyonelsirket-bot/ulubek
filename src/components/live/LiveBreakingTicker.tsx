@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useLiveNews } from "./LiveNewsProvider";
-import { Radio } from "lucide-react";
+import LiveConnectedBadge from "./LiveConnectedBadge";
 
 export default function LiveBreakingTicker() {
-  const { breakingNews, connected, newBreakingId } = useLiveNews();
+  const { breakingNews, newBreakingId } = useLiveNews();
 
   if (breakingNews.length === 0) return null;
 
@@ -13,6 +13,7 @@ export default function LiveBreakingTicker() {
 
   return (
     <div
+      id="son-dakika"
       className={`bg-red-600 text-white transition-all duration-500 ${
         newBreakingId ? "ring-2 ring-yellow-400 ring-offset-1" : ""
       }`}
@@ -22,12 +23,7 @@ export default function LiveBreakingTicker() {
           <span className="rounded bg-white px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-red-600">
             Son Dakika
           </span>
-          {connected && (
-            <span className="flex items-center gap-1 rounded bg-red-700 px-1.5 py-0.5 text-[10px] font-medium uppercase">
-              <Radio className="h-3 w-3 animate-pulse" />
-              Canlı
-            </span>
-          )}
+          <LiveConnectedBadge variant="ticker" />
         </div>
         <div className="overflow-hidden">
           <div className="animate-ticker flex whitespace-nowrap">

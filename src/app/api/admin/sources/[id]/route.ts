@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getSourceWithCategory } from "@/lib/services/admin";
+import { getSourceWithCategory, updateSource, deleteSource } from "@/lib/services/admin";
 
 export async function GET(
   _request: NextRequest,
@@ -32,13 +32,13 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const existing = await getSourceWithCategory(id);
+  const updated = await updateSource(id, body);
 
-  if (!existing) {
+  if (!updated) {
     return NextResponse.json({ error: "Kaynak bulunamadı" }, { status: 404 });
   }
 
-  return NextResponse.json({ ...existing, ...body });
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(
@@ -50,7 +50,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  await params;
-
+  const { id } = await params;
+  await deleteSource(id);
   return NextResponse.json({ success: true });
 }

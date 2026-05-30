@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import RelativeTime from "@/components/ui/RelativeTime";
 
 interface FeaturedArticleProps {
   article: {
@@ -11,14 +12,6 @@ interface FeaturedArticleProps {
     category?: { name: string; slug: string; color: string };
   };
   size?: "large" | "medium";
-}
-
-function getRelativeTime(dateString: string | Date): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-  if (diffHours < 24) return `${diffHours} saat önce`;
-  return date.toLocaleDateString("tr-TR");
 }
 
 export default function FeaturedArticle({ article, size = "large" }: FeaturedArticleProps) {
@@ -49,7 +42,7 @@ export default function FeaturedArticle({ article, size = "large" }: FeaturedArt
             <h2 className="mt-2 line-clamp-2 text-xl font-bold leading-tight text-white md:text-2xl">
               {article.title}
             </h2>
-            <time className="mt-2 block text-sm text-gray-300">{getRelativeTime(article.publishedAt)}</time>
+            <RelativeTime date={article.publishedAt} className="mt-2 block text-sm text-gray-300" />
           </div>
         </Link>
       </article>
@@ -85,7 +78,7 @@ export default function FeaturedArticle({ article, size = "large" }: FeaturedArt
           {article.excerpt && (
             <p className="mt-3 line-clamp-2 max-w-2xl text-base text-gray-200 md:text-lg">{article.excerpt}</p>
           )}
-          <time className="mt-3 block text-sm text-gray-400">{getRelativeTime(article.publishedAt)}</time>
+          <RelativeTime date={article.publishedAt} className="mt-3 block text-sm text-gray-400" />
         </div>
       </Link>
     </article>

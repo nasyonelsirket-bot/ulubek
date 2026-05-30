@@ -12,7 +12,7 @@ interface LiveHomeFeedProps {
 }
 
 export default function LiveHomeFeed({ initialLatest, initialRest }: LiveHomeFeedProps) {
-  const { latestNews, connected, setInitialLatest } = useLiveNews();
+  const { latestNews, connected, wsEnabled, setInitialLatest } = useLiveNews();
 
   useEffect(() => {
     setInitialLatest([...initialLatest, ...initialRest]);
@@ -34,6 +34,7 @@ export default function LiveHomeFeed({ initialLatest, initialRest }: LiveHomeFee
         <div className="mb-6 flex items-center justify-between border-b-2 border-red-600 pb-2">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-gray-900">Son Haberler</h2>
+            {wsEnabled && (
             <span
               className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                 connected
@@ -53,6 +54,7 @@ export default function LiveHomeFeed({ initialLatest, initialRest }: LiveHomeFee
                 </>
               )}
             </span>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

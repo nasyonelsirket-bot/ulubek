@@ -1,4 +1,5 @@
 import { getAdminDashboardStats } from "@/lib/services/admin";
+import { formatDateTime } from "@/lib/utils/date";
 import { Eye, Newspaper, Rss, Sparkles } from "lucide-react";
 
 export default async function AdminDashboard() {
@@ -35,10 +36,10 @@ export default async function AdminDashboard() {
 
       {lastFetch && (
         <div className="mt-8 rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Son RSS Taraması (Mock)</h2>
+          <h2 className="font-semibold">Son AI Taraması</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {lastFetch.createdAt.toLocaleString("tr-TR")} — {lastFetch.status} —{" "}
-            {lastFetch.itemsImported} haber içe aktarıldı
+            {formatDateTime(lastFetch.createdAt.toISOString())} — {lastFetch.status} —{" "}
+            {lastFetch.itemsImported} haber yayınlandı
           </p>
         </div>
       )}

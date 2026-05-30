@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/articles", label: "Haberler", icon: Newspaper },
-  { href: "/admin/sources", label: "RSS Kaynakları", icon: Rss },
+  { href: "/admin/sources", label: "Kaynak Yönetimi", icon: Rss },
 ];
 
 export default function AdminSidebar() {

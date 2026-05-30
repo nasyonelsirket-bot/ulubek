@@ -4,6 +4,8 @@ export type UserRole = "ADMIN" | "EDITOR";
 
 export type SourceType = "RSS" | "MANUAL";
 
+export type SourceKind = "RSS" | "MINISTRY" | "MANUAL";
+
 export interface Category {
   id: string;
   name: string;
@@ -64,11 +66,14 @@ export interface MockSource {
   name: string;
   url: string;
   type: SourceType;
+  kind?: SourceKind;
   isActive: boolean;
   trustScore: number;
   categoryId: string;
   lastFetchedAt: string | null;
   fetchIntervalMin: number;
+  lastFetchError?: string | null;
+  articlesImported?: number;
 }
 
 export interface MockAdminUser {

@@ -12,7 +12,9 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "rss:fetch": "tsx scripts/rss-fetch.ts",
-    "ai:process": "tsx scripts/ai-process.ts"
+    "ai:process": "tsx scripts/ai-process.ts",
+    "auto:news": "tsx scripts/auto-news.ts",
+    "check:production": "node scripts/check-production-build.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

@@ -4,16 +4,24 @@ import { AUTH_COOKIE, signToken } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const identifier = (body.username ?? body.email ?? "").trim();
+    const password = body.password ?? "";
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "E-posta ve şifre gerekli" }, { status: 400 });
+    if (!identifier || !password) {
+      return NextResponse.json(
+        { error: "Kullanıcı adı ve şifre gerekli" },
+        { status: 400 }
+      );
     }
 
-    const user = validateAdminCredentials(email, password);
+    const user = validateAdminCredentials(identifier, password);
 
     if (!user) {
-      return NextResponse.json({ error: "Geçersiz kimlik bilgileri" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Kullanıcı adı veya şifre hatalı" },
+        { status: 401 }
+      );
     }
 
     const token = await signToken({
@@ -36,7 +44,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
-    return NextResponse.json({ error: "Sunucu hatası" }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sunucu hatası";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

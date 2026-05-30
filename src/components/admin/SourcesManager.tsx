@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Plus, Trash2, Rss, Play } from "lucide-react";
+import { RefreshCw, Plus, Trash2, Rss, Play, Building2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { MINISTRY_SOURCES } from "@/data/ministry-sources";
+import type { SourceKind } from "@/data/types";
+import { formatDateTime } from "@/lib/utils/date";
 
 interface Category {
   id: string;
@@ -46,6 +49,7 @@ interface SourceRow {
   name: string;
   url: string;
   type: string;
+  kind?: SourceKind;
   isActive: boolean;
   trustScore: number;
   fetchIntervalMinutes: number;
@@ -61,9 +65,24 @@ interface SourcesManagerProps {
   categories: Category[];
 }
 
+type FilterTab = "all" | "rss" | "ministry";
+
+const KIND_LABELS: Record<SourceKind, string> = {
+  RSS: "RSS",
+  MINISTRY: "Bakanlık",
+  MANUAL: "Manuel",
+};
+
+function trustColor(score: number) {
+  if (score >= 0.9) return "text-green-600 dark:text-green-400";
+  if (score >= 0.7) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
+}
+
 export default function SourcesManager({ initialSources, categories }: SourcesManagerProps) {
   const router = useRouter();
   const [sources, setSources] = useState(initialSources);
+  const [filter, setFilter] = useState<FilterTab>("all");
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [fetchingAll, setFetchingAll] = useState(false);
@@ -72,11 +91,18 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
   const [form, setForm] = useState({
     name: "",
     url: "",
+    kind: "RSS" as SourceKind,
     categoryId: "",
-    fetchIntervalMinutes: 30,
+    fetchIntervalMinutes: 1,
     trustScore: 0.8,
     isActive: true,
   });
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return sources;
+    if (filter === "rss") return sources.filter((s) => (s.kind ?? "RSS") === "RSS");
+    return sources.filter((s) => s.kind === "MINISTRY");
+  }, [sources, filter]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -88,9 +114,13 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          type: "RSS",
-          categoryId: form.categoryId || null,
+          name: form.name,
+          url: form.url,
+          kind: form.kind,
+          isActive: form.isActive,
+          trustScore: form.trustScore,
+          categoryId: form.categoryId || categories[0]?.id,
+          fetchIntervalMin: form.fetchIntervalMinutes,
         }),
       });
 
@@ -100,10 +130,85 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         return;
       }
 
-      setSources((prev) => [data, ...prev]);
-      setForm({ name: "", url: "", categoryId: "", fetchIntervalMinutes: 30, trustScore: 0.8, isActive: true });
+      setSources((prev) => [
+        {
+          id: data.id,
+          name: data.name,
+          url: data.url,
+          type: data.type,
+          kind: data.kind,
+          isActive: data.isActive,
+          trustScore: data.trustScore,
+          fetchIntervalMinutes: data.fetchIntervalMin,
+          lastFetchedAt: null,
+          lastFetchError: null,
+          articlesFetched: 0,
+          category: categories.find((c) => c.id === data.categoryId) ?? null,
+          _count: { articles: 0 },
+        },
+        ...prev,
+      ]);
+      setForm({
+        name: "",
+        url: "",
+        kind: "RSS",
+        categoryId: "",
+        fetchIntervalMinutes: 1,
+        trustScore: 0.8,
+        isActive: true,
+      });
       setShowForm(false);
       setMessage("Kaynak başarıyla eklendi.");
+      router.refresh();
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function addMinistryPreset(preset: (typeof MINISTRY_SOURCES)[0]) {
+    setLoading(`ministry-${preset.name}`);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/admin/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: preset.name,
+          url: preset.url,
+          kind: "MINISTRY",
+          isActive: true,
+          trustScore: preset.trustScore,
+          categoryId: preset.categoryId,
+          fetchIntervalMin: 1,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error || "Bakanlık kaynağı eklenemedi");
+        return;
+      }
+
+      setSources((prev) => [
+        {
+          id: data.id,
+          name: data.name,
+          url: data.url,
+          type: data.type,
+          kind: "MINISTRY",
+          isActive: true,
+          trustScore: data.trustScore,
+          fetchIntervalMinutes: 1,
+          lastFetchedAt: null,
+          lastFetchError: null,
+          articlesFetched: 0,
+          category: categories.find((c) => c.id === data.categoryId) ?? null,
+          _count: { articles: 0 },
+        },
+        ...prev,
+      ]);
+      setMessage(`${preset.name} eklendi.`);
       router.refresh();
     } finally {
       setLoading(null);
@@ -122,6 +227,18 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
     }
   }
 
+  async function updateTrustScore(id: string, trustScore: number) {
+    const res = await fetch(`/api/admin/sources/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trustScore }),
+    });
+
+    if (res.ok) {
+      setSources((prev) => prev.map((s) => (s.id === id ? { ...s, trustScore } : s)));
+    }
+  }
+
   async function fetchSource(id: string) {
     setLoading(id);
     setMessage("");
@@ -132,7 +249,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
 
       if (res.ok) {
         setMessage(
-          `${data.sourceName}: ${data.processed ?? data.created} yayınlandı, ${data.skipped} kopya atlandı`
+          `${data.sourceName}: ${data.itemsImported} yayınlandı · ${data.duplicate ?? 0} kopya · ${data.spam ?? 0} spam · ${data.skipped} atlandı`
         );
       } else {
         setMessage(data.error || "Tarama başarısız");
@@ -150,7 +267,9 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
     try {
       const res = await fetch("/api/admin/sources/fetch-all", { method: "POST" });
       const data = await res.json();
-      setMessage(`Tüm kaynaklar tarandı: ${data.created} yayınlandı, ${data.skipped} atlandı`);
+      setMessage(
+        `Tarama tamamlandı: ${data.imported ?? data.created} yayın · ${data.skipped} atlandı · ${data.sources?.reduce((n: number, s: { duplicate?: number }) => n + (s.duplicate ?? 0), 0) ?? 0} kopya`
+      );
       router.refresh();
     } finally {
       setFetchingAll(false);
@@ -165,33 +284,98 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
     }
   }
 
+  const existingMinistryUrls = new Set(sources.map((s) => s.url));
+
   return (
     <div className="space-y-6">
       {message && (
-        <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">{message}</div>
+        <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+          {message}
+        </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex rounded-lg border bg-background p-1">
+          {(["all", "rss", "ministry"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setFilter(tab)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                filter === tab
+                  ? "bg-red-600 text-white"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab === "all" ? "Tümü" : tab === "rss" ? "RSS" : "Bakanlık"}
+            </button>
+          ))}
+        </div>
+
         <Button className="bg-red-600 hover:bg-red-700" onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4" />
-          RSS Kaynağı Ekle
+          Kaynak Ekle
         </Button>
         <Button variant="outline" onClick={fetchAll} disabled={fetchingAll}>
           <RefreshCw className={`h-4 w-4 ${fetchingAll ? "animate-spin" : ""}`} />
-          Tümünü Tara
+          Tümünü Tara (AI Motor)
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Building2 className="h-4 w-4" />
+            Bakanlık Kaynakları — Hızlı Ekle
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {MINISTRY_SOURCES.map((preset) => {
+              const exists = existingMinistryUrls.has(preset.url);
+              return (
+                <Button
+                  key={preset.url}
+                  variant="outline"
+                  size="sm"
+                  disabled={exists || loading === `ministry-${preset.name}`}
+                  onClick={() => addMinistryPreset(preset)}
+                >
+                  {exists ? "✓ " : "+ "}
+                  {preset.name}
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {showForm && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Rss className="h-5 w-5" />
-              Yeni RSS Kaynağı
+              Yeni Haber Kaynağı
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="kind">Kaynak Türü</Label>
+                <Select
+                  value={form.kind}
+                  onValueChange={(v) => setForm({ ...form, kind: v as SourceKind })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RSS">RSS Feed</SelectItem>
+                    <SelectItem value="MINISTRY">Bakanlık / Resmi</SelectItem>
+                    <SelectItem value="MANUAL">Manuel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Kaynak Adı</Label>
                 <Input
@@ -202,7 +386,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="url">RSS Feed URL</Label>
                 <Input
                   id="url"
@@ -214,7 +398,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                 />
               </div>
               <div className="space-y-2">
-                <Label>Kategori</Label>
+                <Label>Kategori (otomatik eşleme yedek)</Label>
                 <Select
                   value={form.categoryId}
                   onValueChange={(v) => setForm({ ...form, categoryId: v })}
@@ -236,13 +420,33 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                 <Input
                   id="interval"
                   type="number"
-                  min={5}
+                  min={1}
                   max={1440}
                   value={form.fetchIntervalMinutes}
                   onChange={(e) =>
-                    setForm({ ...form, fetchIntervalMinutes: parseInt(e.target.value) || 30 })
+                    setForm({ ...form, fetchIntervalMinutes: parseInt(e.target.value) || 1 })
                   }
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="trust" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Güven Puanı: {(form.trustScore * 100).toFixed(0)}%
+                </Label>
+                <input
+                  id="trust"
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={form.trustScore * 100}
+                  onChange={(e) =>
+                    setForm({ ...form, trustScore: parseInt(e.target.value) / 100 })
+                  }
+                  className="w-full accent-red-600"
+                />
+                <p className="text-xs text-muted-foreground">
+                  %90+ manşet adayı · %30 altı otomatik atlanır
+                </p>
               </div>
               <div className="sm:col-span-2 flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
@@ -257,11 +461,13 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         </Card>
       )}
 
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Kaynak</TableHead>
+              <TableHead>Tür</TableHead>
+              <TableHead>Güven</TableHead>
               <TableHead>Kategori</TableHead>
               <TableHead>Durum</TableHead>
               <TableHead>Son Tarama</TableHead>
@@ -270,14 +476,14 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sources.length === 0 ? (
+            {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  Henüz RSS kaynağı eklenmemiş
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  Bu filtrede kaynak bulunamadı
                 </TableCell>
               </TableRow>
             ) : (
-              sources.map((source) => (
+              filtered.map((source) => (
                 <TableRow key={source.id}>
                   <TableCell>
                     <div>
@@ -291,10 +497,33 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                     </div>
                   </TableCell>
                   <TableCell>
+                    <Badge variant={source.kind === "MINISTRY" ? "default" : "secondary"}>
+                      {KIND_LABELS[source.kind ?? "RSS"]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-semibold ${trustColor(source.trustScore)}`}>
+                        {(source.trustScore * 100).toFixed(0)}%
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={source.trustScore * 100}
+                        onChange={(e) =>
+                          updateTrustScore(source.id, parseInt(e.target.value) / 100)
+                        }
+                        className="w-16 accent-red-600"
+                        title="Güven puanını güncelle"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     {source.category ? (
-                      <Badge variant="secondary">{source.category.name}</Badge>
+                      <Badge variant="outline">{source.category.name}</Badge>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">Otomatik</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -311,12 +540,12 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {source.lastFetchedAt
-                      ? new Date(source.lastFetchedAt).toLocaleString("tr-TR")
+                      ? formatDateTime(source.lastFetchedAt)
                       : "Henüz taranmadı"}
                   </TableCell>
                   <TableCell>
-                    <span className="font-medium">{source._count.articles}</span>
-                    <span className="text-xs text-muted-foreground"> / {source.articlesFetched} toplam</span>
+                    <span className="font-semibold">{source._count.articles}</span>
+                    <span className="text-xs text-muted-foreground"> yayın</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
@@ -325,7 +554,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                         size="icon"
                         onClick={() => fetchSource(source.id)}
                         disabled={loading === source.id}
-                        title="Şimdi tara"
+                        title="AI ile tara ve yayınla"
                       >
                         <Play className={`h-4 w-4 ${loading === source.id ? "animate-pulse" : ""}`} />
                       </Button>

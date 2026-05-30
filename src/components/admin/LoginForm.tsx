@@ -10,7 +10,7 @@ import Logo from "@/components/brand/Logo";
 
 export default function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,20 +24,27 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
+        credentials: "same-origin",
       });
 
-      const data = await res.json();
+      let data: { error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setError(`Sunucu yanıtı okunamadı (HTTP ${res.status})`);
+        return;
+      }
 
       if (!res.ok) {
-        setError(data.error || "Giriş başarısız");
+        setError(data.error || `Giriş başarısız (HTTP ${res.status})`);
         return;
       }
 
       router.push("/admin");
       router.refresh();
     } catch {
-      setError("Bağlantı hatası");
+      setError("Bağlantı hatası — ağ veya sunucuya ulaşılamıyor");
     } finally {
       setLoading(false);
     }
@@ -55,16 +62,19 @@ export default function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">{error}</div>
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+              {error}
+            </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="email">E-posta</Label>
+            <Label htmlFor="username">Kullanıcı adı</Label>
             <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@ulubekmedya.com"
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              autoComplete="username"
               required
             />
           </div>
@@ -76,12 +86,16 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
               required
             />
           </div>
           <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={loading}>
             {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Varsayılan: admin / admin123
+          </p>
         </form>
       </CardContent>
     </Card>

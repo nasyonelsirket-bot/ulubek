@@ -1,12 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { UserRole } from "@/data/types";
+import { AUTH_COOKIE, JWT_SECRET } from "@/lib/auth/constants";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ulubek-fallback-dev-secret"
-);
-
-export const AUTH_COOKIE = "ulubek_admin_token";
+export { AUTH_COOKIE } from "@/lib/auth/constants";
 
 export interface AuthPayload {
   userId: string;

@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
+  --background: #f4f5f7;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #dc2626;
+  --popover-foreground: #0f172a;
+  --primary: #c41e1e;
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6;
-  --secondary-foreground: #111827;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #f3f4f6;
-  --accent-foreground: #111827;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #fef2f2;
+  --accent-foreground: #991b1b;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #dc2626;
-  --radius: 0.5rem;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #c41e1e;
+  --radius: 0.625rem;
+  --header-height: 64px;
+}
+
+.dark {
+  --background: #0b0f19;
+  --foreground: #f1f5f9;
+  --card: #131a2b;
+  --card-foreground: #f1f5f9;
+  --popover: #131a2b;
+  --popover-foreground: #f1f5f9;
+  --primary: #ef4444;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e1b2e;
+  --accent-foreground: #fca5a5;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #ef4444;
 }
 
 @theme inline {
@@ -52,6 +75,39 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.prose-content p {
+  margin-bottom: 1.25rem;
+  line-height: 1.85;
+  color: var(--muted-foreground);
+}
+
+.dark .prose-content p {
+  color: #cbd5e1;
+}
+
+.prose-content h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: var(--foreground);
+  scroll-margin-top: 6rem;
+}
+
+.prose-content h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--foreground);
+  scroll-margin-top: 6rem;
+}
+
+.prose-content p:last-child {
+  margin-bottom: 0;
 }
 
 @keyframes ticker {
@@ -69,16 +125,6 @@ body {
 
 .animate-ticker:hover {
   animation-play-state: paused;
-}
-
-.prose-content p {
-  margin-bottom: 1.25rem;
-  line-height: 1.8;
-  color: #374151;
-}
-
-.prose-content p:last-child {
-  margin-bottom: 0;
 }
 
 .line-clamp-2 {
