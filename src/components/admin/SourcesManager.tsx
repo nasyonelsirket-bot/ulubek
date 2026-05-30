@@ -36,7 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { MINISTRY_SOURCES } from "@/data/ministry-sources";
-import type { SourceKind } from "@/data/types";
+import type { SourceKind, SourceFetchType } from "@/data/types";
 import { formatDateTime } from "@/lib/utils/date";
 
 interface Category {
@@ -91,7 +91,8 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
   const [form, setForm] = useState({
     name: "",
     url: "",
-    kind: "RSS" as SourceKind,
+    kind: "MANUAL" as SourceKind,
+    fetchType: "WEB" as SourceFetchType,
     categoryId: "",
     fetchIntervalMinutes: 1,
     trustScore: 0.8,
@@ -117,6 +118,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           name: form.name,
           url: form.url,
           kind: form.kind,
+          fetchType: form.fetchType,
           isActive: form.isActive,
           trustScore: form.trustScore,
           categoryId: form.categoryId || categories[0]?.id,
@@ -151,7 +153,8 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       setForm({
         name: "",
         url: "",
-        kind: "RSS",
+        kind: "MANUAL",
+        fetchType: "WEB",
         categoryId: "",
         fetchIntervalMinutes: 1,
         trustScore: 0.8,
@@ -177,6 +180,7 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           name: preset.name,
           url: preset.url,
           kind: "MINISTRY",
+          fetchType: preset.fetchType ?? "WEB",
           isActive: true,
           trustScore: preset.trustScore,
           categoryId: preset.categoryId,
@@ -361,6 +365,21 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           <CardContent>
             <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
+                <Label htmlFor="fetchType">Tarama Yöntemi</Label>
+                <Select
+                  value={form.fetchType}
+                  onValueChange={(v) => setForm({ ...form, fetchType: v as SourceFetchType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WEB">Web Sitesi (URL tarama)</SelectItem>
+                    <SelectItem value="RSS">RSS Feed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="kind">Kaynak Türü</Label>
                 <Select
                   value={form.kind}
@@ -387,13 +406,19 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="url">RSS Feed URL</Label>
+                <Label htmlFor="url">
+                  {form.fetchType === "WEB" ? "Haber Sitesi URL" : "RSS Feed URL"}
+                </Label>
                 <Input
                   id="url"
                   type="url"
                   value={form.url}
                   onChange={(e) => setForm({ ...form, url: e.target.value })}
-                  placeholder="https://example.com/rss.xml"
+                  placeholder={
+                    form.fetchType === "WEB"
+                      ? "https://www.ornekhaber.com"
+                      : "https://example.com/rss.xml"
+                  }
                   required
                 />
               </div>

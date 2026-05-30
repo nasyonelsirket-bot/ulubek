@@ -25,24 +25,25 @@ export default function CategoryBlock({ name, slug, color, articles }: CategoryB
   const [lead, ...rest] = articles;
 
   return (
-    <section className="mb-12">
-      <div className="mb-6 flex items-center justify-between border-b-2 pb-2" style={{ borderColor: color }}>
-        <h2 className="text-xl font-black uppercase tracking-wide text-foreground md:text-2xl">{name}</h2>
+    <section className="mb-8">
+      <div className="mb-4 flex items-center justify-between border-b-2 pb-2" style={{ borderColor: color }}>
+        <h2 className="news-section-title text-xl text-foreground md:text-2xl">{name}</h2>
         <Link
           href={`/kategori/${slug}`}
-          className="text-sm font-semibold transition-colors hover:opacity-80"
+          className="text-sm font-bold uppercase tracking-wide transition-colors hover:opacity-80"
           style={{ color }}
         >
-          Tümünü Gör →
+          Tümü →
         </Link>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
           <PremiumArticleCard article={lead} variant="featured" priority />
         </div>
-        <div className="flex flex-col gap-4">
-          {rest.slice(0, 3).map((article) => (
-            <PremiumArticleCard key={article.id} article={article} variant="horizontal" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-7 lg:grid-cols-2">
+          {rest.slice(0, 7).map((article) => (
+            <PremiumArticleCard key={article.id} article={article} variant="compact" />
           ))}
         </div>
       </div>

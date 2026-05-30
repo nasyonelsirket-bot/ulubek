@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { generatePlaceholderCover } from "./placeholder-image";
 import type { AIProcessedResult } from "@/lib/ai/types";
 
 export interface ImageGenerationResult {
@@ -44,8 +45,7 @@ export async function generateNewsImage(title: string, category: string): Promis
   const openai = getClient();
 
   if (!openai) {
-    const fallback = categoryFallbackImage(category);
-    return { url: fallback, prompt };
+    return { url: generatePlaceholderCover(title, category), prompt };
   }
 
   try {
@@ -63,25 +63,13 @@ export async function generateNewsImage(title: string, category: string): Promis
     /* fallback */
   }
 
-  return { url: categoryFallbackImage(category), prompt };
+  return { url: generatePlaceholderCover(title, category), prompt };
 }
 
 function getClient(): OpenAI | null {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
   return new OpenAI({ apiKey: key });
-}
-
-function categoryFallbackImage(category: string): string {
-  const map: Record<string, string> = {
-    gundem: "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200&h=675&fit=crop",
-    ekonomi: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&h=675&fit=crop",
-    spor: "https://images.unsplash.com/photo-1574629810360-7efbc5751737?w=1200&h=675&fit=crop",
-    teknoloji: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=675&fit=crop",
-    saglik: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=675&fit=crop",
-    dunya: "https://images.unsplash.com/photo-1569163139394-de4798aa62b4?w=1200&h=675&fit=crop",
-  };
-  return map[category] ?? map.gundem;
 }
 
 export type { AIProcessedResult };

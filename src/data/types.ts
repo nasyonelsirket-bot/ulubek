@@ -6,6 +6,8 @@ export type SourceType = "RSS" | "MANUAL";
 
 export type SourceKind = "RSS" | "MINISTRY" | "MANUAL";
 
+export type SourceFetchType = "RSS" | "WEB";
+
 export interface Category {
   id: string;
   name: string;
@@ -61,12 +63,30 @@ export interface ArticleWithRelations {
   aiProcessingError: string | null;
 }
 
+export type QueueStatus = "SCANNED" | "PENDING" | "PUBLISHED" | "REJECTED";
+
+export interface QueueItem {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  sourceUrl: string;
+  originalTitle: string;
+  originalContent: string;
+  status: QueueStatus;
+  articleId?: string;
+  imagePrompt?: string;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
 export interface MockSource {
   id: string;
   name: string;
   url: string;
   type: SourceType;
   kind?: SourceKind;
+  fetchType?: SourceFetchType;
   isActive: boolean;
   trustScore: number;
   categoryId: string;

@@ -1,8 +1,17 @@
 import OpenAI from "openai";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts";
+import { buildSystemPrompt, buildUserPrompt, buildExpansionPrompt } from "./prompts";
 import type { AIProcessInput, AIProcessedResult } from "./types";
+import {
+  countWords,
+  enrichArticleHtml,
+  ensureMinimumExcerpt,
+  hasRequiredSections,
+} from "./content-formatter";
 
 let client: OpenAI | null = null;
+
+const MIN_CONTENT_WORDS = 800;
+const MIN_EXCERPT_WORDS = 150;
 
 function getClient(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -15,6 +24,35 @@ export function isOpenAIAvailable(): boolean {
   return !!process.env.OPENAI_API_KEY;
 }
 
+async function expandContentIfNeeded(
+  openai: OpenAI,
+  title: string,
+  content: string
+): Promise<string> {
+  if (countWords(content) >= MIN_CONTENT_WORDS && hasRequiredSections(content)) {
+    return content;
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const response = await openai.chat.completions.create({
+    model,
+    temperature: 0.4,
+    max_tokens: 8000,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Sen haber editörüsün. Verilen haber metnini 800-1500 kelimeye genişlet. Zorunlu H2 bölümleri: Giriş, Gelişmeler, Detaylar, Etkileri, Son Durum. Sadece HTML döndür.",
+      },
+      { role: "user", content: buildExpansionPrompt(title, content) },
+    ],
+  });
+
+  const expanded = response.choices[0]?.message?.content?.trim();
+  if (!expanded) return content;
+  return enrichArticleHtml(expanded);
+}
+
 export async function processWithOpenAI(input: AIProcessInput): Promise<AIProcessedResult> {
   const openai = getClient();
   if (!openai) {
@@ -25,7 +63,8 @@ export async function processWithOpenAI(input: AIProcessInput): Promise<AIProces
 
   const response = await openai.chat.completions.create({
     model,
-    temperature: 0.3,
+    temperature: 0.4,
+    max_tokens: 8000,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildSystemPrompt(input.categories) },
@@ -50,24 +89,25 @@ export async function processWithOpenAI(input: AIProcessInput): Promise<AIProces
     throw new Error("AI yanıtı eksik alanlar içeriyor");
   }
 
+  let content = enrichArticleHtml(parsed.content);
+  content = await expandContentIfNeeded(openai, parsed.title, content);
+
+  let excerpt = (parsed.excerpt || "").trim();
+  excerpt = ensureMinimumExcerpt(excerpt, content);
+
+  if (countWords(excerpt) < MIN_EXCERPT_WORDS) {
+    excerpt = ensureMinimumExcerpt("", content);
+  }
+
   return {
     title: parsed.title.trim(),
-    excerpt: (parsed.excerpt || "").trim(),
-    content: sanitizeHtmlContent(parsed.content),
+    excerpt,
+    content,
     categorySlug: parsed.categorySlug,
-    tags: (parsed.tags || []).slice(0, 5).map((t) => t.trim()).filter(Boolean),
+    tags: (parsed.tags || []).slice(0, 6).map((t) => t.trim()).filter(Boolean),
     metaTitle: (parsed.metaTitle || parsed.title).trim().slice(0, 70),
-    metaDescription: (parsed.metaDescription || parsed.excerpt || "").trim().slice(0, 160),
+    metaDescription: (parsed.metaDescription || excerpt).trim().slice(0, 160),
     breaking: !!parsed.breaking,
     analysis: parsed.analysis || { topic: "Genel", neutralityScore: 0.9, confidence: 0.8 },
   };
-}
-
-function sanitizeHtmlContent(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/on\w+="[^"]*"/gi, "")
-    .replace(/<(?!p|\/p|strong|\/strong|em|\/em)[^>]+>/gi, "")
-    .trim();
 }

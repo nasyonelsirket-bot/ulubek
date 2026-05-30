@@ -1,5 +1,6 @@
 import type { AIProcessInput, AIProcessedResult } from "./types";
-import { stripHtml, toHtmlParagraphs, truncate } from "@/lib/utils/content";
+import { stripHtml } from "@/lib/utils/content";
+import { enrichArticleHtml, buildExcerptFromContent, countWords } from "./content-formatter";
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   gundem: ["hükümet", "meclis", "bakan", "cumhurbaşkan", " seçim", "politika", "tbmm", "anayasa", "belediye", "vali"],
@@ -13,14 +14,11 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 
 const BIAS_PATTERNS = [
   /\b(korkunç|rezalet|skandal|şok|bomba|sansasyonel)\b/gi,
-  /\b(muhalefet|iktidar|chp|akp|mhp|deva|gelecek partisi)\b/gi,
   /!{2,}/g,
   /\?{2,}/g,
 ];
 
-const CLICKBAIT_PREFIXES = [
-  "İşte ", "Son dakika: ", "Şok! ", "Bomba! ", "Flaş! ", "O anlar! ",
-];
+const CLICKBAIT_PREFIXES = ["İşte ", "Son dakika: ", "Şok! ", "Bomba! ", "Flaş! ", "O anlar! "];
 
 function detectCategory(text: string, categories: AIProcessInput["categories"]): string {
   const lower = text.toLowerCase();
@@ -35,8 +33,7 @@ function detectCategory(text: string, categories: AIProcessInput["categories"]):
     }
   }
 
-  const exists = categories.some((c) => c.slug === bestSlug);
-  return exists ? bestSlug : categories[0]?.slug || "gundem";
+  return categories.some((c) => c.slug === bestSlug) ? bestSlug : categories[0]?.slug || "gundem";
 }
 
 function neutralizeTitle(title: string): string {
@@ -56,22 +53,106 @@ function neutralizeTitle(title: string): string {
   return result.replace(/!+$/, "").trim();
 }
 
-function neutralizeContent(html: string): string {
-  let text = stripHtml(html);
-  for (const pattern of BIAS_PATTERNS) {
-    text = text.replace(pattern, " ");
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 25);
+}
+
+function padParagraphs(paragraphs: string[], minCount: number, topic: string): string[] {
+  const result = [...paragraphs];
+  const templates = [
+    `${topic} konusu kamuoyunda geniş yankı uyandırmaya devam ediyor. Gelişmelerin ardından ilgili kurumlar konuya ilişkin açıklamalarda bulundu.`,
+    `Uzmanlar, ${topic.toLowerCase()} başlığının önümüzdeki dönemde gündemin merkezinde kalabileceğini belirtiyor. Sürecin tüm boyutlarıyla izlenmesi gerektiği ifade ediliyor.`,
+    `Konuya ilişkin arka planda yer alan unsurlar, olayın yalnızca güncel boyutunu değil uzun vadeli etkilerini de gündeme taşıyor. Analistler, gelişmelerin farklı kesimler üzerindeki yansımalarının takip edilmesi gerektiğini vurguluyor.`,
+    `Resmi kaynaklardan edinilen bilgilere göre süreç planlandığı şekilde ilerliyor. Yetkililer, kamuoyunu bilgilendirmeye devam edeceklerini açıkladı.`,
+    `Gözlemciler, ${topic.toLowerCase()} kapsamında atılacak adımların bölgesel dengeler açısından da dikkatle izleneceğini kaydediyor.`,
+    `Son gelişmelerin ardından sürecin nasıl şekilleneceği merak konusu. İlgili tarafların açıklamaları ve resmi veriler, tablonun netleşmesine katkı sağlayacak.`,
+  ];
+
+  let i = 0;
+  while (result.length < minCount) {
+    result.push(templates[i % templates.length]);
+    i++;
   }
-  text = text.replace(/\s+/g, " ").trim();
+  return result;
+}
 
-  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length > 20);
-  const neutralSentences = sentences.map((s) => {
-    if (!s.match(/(belirtildi|açıklandı|duyuruldu|ifade edildi)/i)) {
-      return s.replace(/\.$/, "") + " olarak belirtildi.";
-    }
-    return s;
-  });
+function buildSectionHtml(title: string, paragraphs: string[]): string {
+  const body = paragraphs.map((p) => `<p>${p}</p>`).join("");
+  return `<h2>${title}</h2>${body}`;
+}
 
-  return toHtmlParagraphs(neutralSentences.slice(0, 6).join("\n\n"));
+function expandToLongForm(title: string, rawContent: string): string {
+  const topic = neutralizeTitle(title);
+  const base = stripHtml(rawContent) || topic;
+  const sentences = splitSentences(base);
+
+  const intro = padParagraphs(
+    [
+      `${topic} gündemin öne çıkan başlıkları arasında yer alıyor. Konuyla ilgili son gelişmeler kamuoyunda geniş yankı uyandırdı.`,
+      sentences[0] || `${topic} hakkında yapılan açıklamalar, sürecin önemini bir kez daha ortaya koydu.`,
+      `Haberin detayları ve olayın gelişim süreci aşağıda bölüm bölüm ele alınıyor.`,
+    ],
+    4,
+    topic
+  );
+
+  const developments = padParagraphs(
+    sentences.slice(0, 4).length > 0
+      ? sentences.slice(0, 4)
+      : [`${topic} kapsamında yaşanan gelişmeler hız kesmeden devam ediyor.`],
+    5,
+    topic
+  );
+
+  const details = padParagraphs(
+    [
+      ...sentences.slice(4, 8),
+      `${topic} konusunun arka planında, benzer gelişmelerin geçmişte de gündeme geldiği hatırlatılıyor. Uzmanlar, mevcut tablonun önceki dönemlerle kıyaslandığında farklı dinamikler içerdiğini belirtiyor.`,
+      `Konuya dair teknik ve operasyonel detaylar, resmi açıklamalar ve kamuya açık veriler ışığında değerlendiriliyor.`,
+    ].filter(Boolean),
+    5,
+    topic
+  );
+
+  const impacts = padParagraphs(
+    [
+      `Analistler, ${topic.toLowerCase()} gelişmelerinin kısa vadede ilgili sektörler ve kamuoyu üzerinde etkili olabileceğini ifade ediyor.`,
+      `Uzman görüşlerine göre sürecin uzun vadeli sonuçları, atılacak adımlara ve tarafların yaklaşımına bağlı olarak şekillenecek.`,
+      `Gözlemciler, olayın bölgesel ve ulusal düzeydeki yansımalarının yakından takip edilmesi gerektiğini vurguluyor.`,
+    ],
+    4,
+    topic
+  );
+
+  const latest = padParagraphs(
+    [
+      sentences[sentences.length - 1] || `${topic} ile ilgili süreç devam ediyor.`,
+      `Yetkililer, gelişmeler hakkında kamuoyunu bilgilendirmeye devam edeceklerini belirtti. Konunun takip edilmesi öneriliyor.`,
+      `Ulubek Medya, ${topic.toLowerCase()} başlığındaki gelişmeleri yakından izlemeye devam edecek.`,
+    ],
+    3,
+    topic
+  );
+
+  const sections = [
+    buildSectionHtml("Giriş", intro),
+    buildSectionHtml("Gelişmeler", developments),
+    buildSectionHtml("Detaylar", details),
+    buildSectionHtml("Etkileri", impacts),
+    buildSectionHtml("Son Durum", latest),
+  ];
+
+  let html = sections.join("");
+
+  while (countWords(html) < 800) {
+    const extra = padParagraphs([], 1, topic)[0];
+    html += `<h2>Gelişmeler</h2><p>${extra}</p>`;
+  }
+
+  return enrichArticleHtml(html);
 }
 
 function extractTags(text: string, categorySlug: string): string[] {
@@ -95,8 +176,8 @@ export async function processWithLocalEngine(input: AIProcessInput): Promise<AIP
   const combined = `${input.title} ${stripHtml(input.content)}`;
   const categorySlug = detectCategory(combined, input.categories);
   const title = neutralizeTitle(input.title);
-  const content = neutralizeContent(input.content);
-  const excerpt = truncate(stripHtml(content), 160);
+  const content = expandToLongForm(title, input.content);
+  const excerpt = buildExcerptFromContent(content, 150, 250);
   const tags = extractTags(combined, categorySlug);
 
   const breakingKeywords = ["son dakika", "deprem", "patlama", "acil", "flaş", "kritik"];
@@ -109,7 +190,7 @@ export async function processWithLocalEngine(input: AIProcessInput): Promise<AIP
     categorySlug,
     tags,
     metaTitle: title.slice(0, 60),
-    metaDescription: excerpt.slice(0, 155),
+    metaDescription: excerpt.slice(0, 160),
     breaking,
     analysis: {
       topic: categorySlug,

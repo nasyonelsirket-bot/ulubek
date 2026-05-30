@@ -51,11 +51,13 @@ export async function getArticleBySlug(slug: string): Promise<ArticleWithRelatio
 }
 
 export async function getArticlesByCategorySlug(
-  categorySlug: string
+  categorySlug: string,
+  limit?: number
 ): Promise<ArticleWithRelations[]> {
   const category = getDataCategoryBySlug(categorySlug);
   if (!category) return [];
-  return mapRawArticles(getMergedRaw().filter((a) => a.categoryId === category.id));
+  const filtered = getMergedRaw().filter((a) => a.categoryId === category.id);
+  return mapRawArticles(limit ? filtered.slice(0, limit) : filtered);
 }
 
 export async function getRelatedArticles(articleId: string, categoryId: string, limit = 4) {

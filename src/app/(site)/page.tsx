@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/articles";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 import { SITE_DESCRIPTION } from "@/lib/seo/config";
+import { categories } from "@/data/categories";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Son Dakika Haberleri",
@@ -17,7 +18,8 @@ export const metadata: Metadata = buildPageMetadata({
   path: "/",
 });
 
-const HOME_CATEGORIES = ["gundem", "ekonomi", "teknoloji", "dunya", "spor", "saglik"] as const;
+const HOME_CATEGORIES = ["gundem", "ekonomi", "dunya", "teknoloji", "saglik", "spor"] as const;
+const ARTICLES_PER_CATEGORY = 8;
 
 function mapArticle(a: Awaited<ReturnType<typeof getPublishedArticles>>[0]) {
   return {
@@ -36,17 +38,17 @@ function mapArticle(a: Awaited<ReturnType<typeof getPublishedArticles>>[0]) {
 export default async function HomePage() {
   const [featured, latest, ...categoryResults] = await Promise.all([
     getFeaturedArticles(),
-    getPublishedArticles(20),
-    ...HOME_CATEGORIES.map((slug) => getArticlesByCategorySlug(slug)),
+    getPublishedArticles(24),
+    ...HOME_CATEGORIES.map((slug) => getArticlesByCategorySlug(slug, ARTICLES_PER_CATEGORY)),
   ]);
 
-  const sliderSlides = featured.slice(0, 5).map(mapArticle);
-  const agendaItems = latest.slice(0, 8).map(mapArticle);
-  const latestGrid = latest.slice(0, 6).map(mapArticle);
+  const sliderSlides = featured.slice(0, 6).map(mapArticle);
+  const agendaItems = latest.slice(0, 10).map(mapArticle);
+  const latestGrid = latest.slice(0, 8).map(mapArticle);
 
   const categoryBlocks = HOME_CATEGORIES.map((slug, i) => {
-    const articles = categoryResults[i].slice(0, 4).map(mapArticle);
-    const cat = articles[0]?.category ?? categoryResults[i][0]?.category;
+    const articles = categoryResults[i].slice(0, ARTICLES_PER_CATEGORY).map(mapArticle);
+    const cat = categories.find((c) => c.slug === slug);
     return {
       slug,
       name: cat?.name ?? slug,
@@ -56,32 +58,27 @@ export default async function HomePage() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:py-8">
-      {/* Hero + Gündem */}
-      <div className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+    <div className="mx-auto max-w-[1400px] px-3 py-4 md:py-5">
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-8">
           <HeroSlider slides={sliderSlides} />
         </div>
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-4">
           <AgendaBox items={agendaItems} />
         </div>
       </div>
 
-      {/* Son Haberler grid */}
-      <section className="mb-12">
-        <div className="mb-6 flex items-center gap-3 border-b-2 border-primary pb-2">
-          <h2 className="text-xl font-black uppercase tracking-wide text-foreground md:text-2xl">
-            Son Haberler
-          </h2>
+      <section className="mb-6">
+        <div className="mb-4 flex items-center gap-3 border-b-2 border-primary pb-2">
+          <h2 className="news-section-title text-xl text-foreground md:text-2xl">Son Haberler</h2>
         </div>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {latestGrid.map((article, i) => (
-            <PremiumArticleCard key={article.id} article={article} priority={i < 3} />
+            <PremiumArticleCard key={article.id} article={article} priority={i < 4} />
           ))}
         </div>
       </section>
 
-      {/* Kategori blokları */}
       {categoryBlocks.map((block) => (
         <CategoryBlock
           key={block.slug}

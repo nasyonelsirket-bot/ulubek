@@ -6,9 +6,10 @@ import {
   countArticlesBySourceName,
 } from "@/lib/ai-engine/store";
 import { getPipelineLogs, getLastRunAt, getTotalImportedCount } from "@/lib/ai-engine/pipeline-log";
+import { getQueueStats } from "@/lib/ai-engine/queue";
 import { isOpenAIAvailable } from "@/lib/ai/openai";
 import { runAutoNewsPipeline, processSingleSource } from "@/lib/ai-engine/pipeline";
-import type { MockSource, SourceKind } from "@/data/types";
+import type { MockSource, SourceKind, SourceFetchType } from "@/data/types";
 
 export async function getEngineStats() {
   const sources = getAllSourcesFromStore();
@@ -22,10 +23,11 @@ export async function getEngineStats() {
     openAiEnabled: isOpenAIAvailable(),
     cronIntervalMin: 1,
     features: [
-      "RSS otomatik tarama",
+      "Web sitesi tarama (URL)",
+      "RSS tarama (opsiyonel)",
       "AI özgünleştirme",
       "SEO başlık & meta",
-      "Otomatik görsel",
+      "AI kapak görseli",
       "Kopya kontrolü",
       "Spam filtresi",
       "Otomatik yayın",
@@ -38,12 +40,14 @@ export async function getAdminDashboardStats() {
   const { getAllArticlesFromStore } = await import("@/lib/ai-engine/store");
   const articles = getAllArticlesFromStore();
   const engine = await getEngineStats();
+  const queue = getQueueStats();
 
   return {
     total: articles.length,
     published: articles.filter((a) => (a.status ?? "PUBLISHED") === "PUBLISHED").length,
     rssSources: engine.activeSources,
-    pendingAI: articles.filter((a) => !a.aiProcessed && a.status === "DRAFT").length,
+    pendingAI: queue.pending + queue.scanned,
+    queue,
     lastFetch: engine.lastRunAt
       ? {
           createdAt: new Date(engine.lastRunAt),
@@ -81,17 +85,20 @@ export async function addSource(data: {
   url: string;
   type?: string;
   kind?: SourceKind;
+  fetchType?: SourceFetchType;
   isActive?: boolean;
   trustScore?: number;
   categoryId: string;
   fetchIntervalMin?: number;
 }): Promise<MockSource> {
+  const fetchType = data.fetchType ?? (data.url.includes("rss") || data.url.endsWith(".xml") ? "RSS" : "WEB");
   const source: MockSource = {
     id: `src-${Date.now()}`,
     name: data.name,
     url: data.url,
     type: "RSS",
-    kind: data.kind ?? "RSS",
+    kind: data.kind ?? "MANUAL",
+    fetchType,
     isActive: data.isActive ?? true,
     trustScore: data.trustScore ?? 0.8,
     categoryId: data.categoryId,

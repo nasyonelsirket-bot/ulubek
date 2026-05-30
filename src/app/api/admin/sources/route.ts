@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
   const source = await addSource({
     name: body.name,
     url: body.url,
-    kind: (body.kind || "RSS") as SourceKind,
+    kind: (body.kind || "MANUAL") as SourceKind,
+    fetchType: body.fetchType,
     isActive: body.isActive ?? true,
     trustScore: body.trustScore ?? 0.8,
     categoryId: body.categoryId,

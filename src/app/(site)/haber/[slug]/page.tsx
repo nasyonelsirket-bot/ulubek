@@ -10,6 +10,7 @@ import { formatDateTime } from "@/lib/utils/date";
 import { buildArticleMetadata } from "@/lib/seo/metadata";
 import { buildNewsArticleSchema } from "@/lib/seo/news-article-schema";
 import { getSiteUrl } from "@/lib/seo/config";
+import { enrichArticleHtml } from "@/lib/ai/content-formatter";
 import JsonLd from "@/components/seo/JsonLd";
 import ShareButtons from "@/components/news/ShareButtons";
 import RelatedArticles from "@/components/news/RelatedArticles";
@@ -53,6 +54,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const tags = seoInput.tags;
   const jsonLd = buildNewsArticleSchema(seoInput);
   const authorName = "Ulubek Medya Editör";
+  const articleHtml = enrichArticleHtml(article.content);
 
   return (
     <>
@@ -91,12 +93,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               )}
             </div>
 
-            <h1 className="text-3xl font-black leading-tight text-foreground md:text-5xl md:leading-[1.15]">
+            <h1 className="font-headline text-3xl font-black leading-tight text-foreground md:text-5xl md:leading-[1.15]">
               {article.title}
             </h1>
 
             {article.excerpt && (
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground md:text-xl">{article.excerpt}</p>
+              <div className="mt-5 border-l-4 border-primary pl-5">
+                <p className="text-base leading-[1.9] text-muted-foreground md:text-lg">{article.excerpt}</p>
+              </div>
             )}
 
             {/* Yazar + meta */}
@@ -125,7 +129,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
             <div
               className="prose-content mt-8 max-w-none text-base md:text-lg"
-              dangerouslySetInnerHTML={{ __html: article.content }}
+              dangerouslySetInnerHTML={{ __html: articleHtml }}
             />
 
             {tags.length > 0 && (
@@ -157,7 +161,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
           {/* Sidebar */}
           <aside className="space-y-6 lg:col-span-4">
-            <TableOfContents content={article.content} />
+            <TableOfContents content={articleHtml} />
             <AgendaBox
               items={relatedArticles.slice(0, 5).map((a) => ({
                 id: a.id,

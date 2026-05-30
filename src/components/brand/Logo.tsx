@@ -10,30 +10,30 @@ export const LOGO_PATH = "/logo.png";
 
 const variants = {
   header: {
-    width: 320,
-    height: 70,
+    width: 480,
+    height: 140,
     className:
-      "h-[52px] w-auto max-w-[min(220px,55vw)] object-contain sm:h-[58px] sm:max-w-[260px] md:h-[64px] md:max-w-[300px] lg:h-[70px] lg:max-w-[340px]",
+      "h-[72px] w-auto max-w-[min(280px,60vw)] object-contain sm:h-[96px] sm:max-w-[340px] md:h-[120px] md:max-w-[400px] lg:h-[140px] lg:max-w-[480px]",
   },
   footer: {
-    width: 280,
-    height: 62,
-    className: "h-12 w-auto max-w-[240px] object-contain md:h-14 md:max-w-[280px]",
+    width: 360,
+    height: 90,
+    className: "h-16 w-auto max-w-[300px] object-contain md:h-20 md:max-w-[360px]",
   },
   admin: {
-    width: 200,
-    height: 48,
-    className: "h-10 w-auto max-w-[180px] object-contain",
+    width: 240,
+    height: 60,
+    className: "h-12 w-auto max-w-[220px] object-contain",
   },
   login: {
-    width: 320,
-    height: 70,
-    className: "h-16 w-auto max-w-[300px] object-contain md:h-[70px] md:max-w-[340px]",
+    width: 480,
+    height: 140,
+    className: "h-24 w-auto max-w-[400px] object-contain md:h-[140px] md:max-w-[480px]",
   },
   compact: {
-    width: 180,
-    height: 40,
-    className: "h-9 w-auto max-w-[160px] object-contain",
+    width: 240,
+    height: 56,
+    className: "h-12 w-auto max-w-[200px] object-contain",
   },
 } as const;
 
@@ -105,7 +105,8 @@ export default function Logo({
       height={size.height}
       className={cn(
         size.className,
-        "bg-transparent dark:brightness-[2.2] dark:contrast-[1.05]",
+        "bg-transparent",
+        opaqueWarning && "logo-blend-fix rounded-sm",
         className
       )}
       style={{ objectFit: "contain" }}
@@ -122,7 +123,7 @@ export default function Logo({
           className="absolute -bottom-5 left-0 z-10 hidden whitespace-nowrap text-[10px] font-medium text-amber-600 lg:block"
           role="status"
         >
-          Logo dosyası şeffaf değil, yeni PNG yüklenmeli
+          Şeffaf PNG yüklenmeli — geçici olarak arka plan gizlendi
         </span>
       )}
       {linked ? (
