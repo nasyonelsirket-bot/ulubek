@@ -41,10 +41,10 @@ export default function HeroSlider({ slides, compact = false }: HeroSliderProps)
   const categorySlug = slide.category?.slug ?? "gundem";
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-border bg-black shadow-sm">
+    <div className="group relative overflow-hidden border border-border bg-black">
       <Link
         href={`/haber/${slide.slug}`}
-        className="relative block aspect-video w-full max-h-[420px]"
+        className="relative block aspect-[16/10] w-full lg:aspect-[16/9]"
       >
         <ArticleImage
           src={slide.image}
@@ -53,25 +53,22 @@ export default function HeroSlider({ slides, compact = false }: HeroSliderProps)
           priority
           sizes="(max-width:1024px) 100vw, 900px"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
-        <div className={compact ? "absolute bottom-0 left-0 right-0 p-4" : "absolute bottom-0 left-0 right-0 p-4 md:p-6"}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent" />
+        <div className={compact ? "absolute bottom-0 left-0 right-0 p-4" : "absolute bottom-0 left-0 right-0 p-4 md:p-5"}>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {slide.breaking && (
-              <span className="rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+              <span className="bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
                 Son Dakika
               </span>
             )}
             {slide.category && (
-              <span
-                className="rounded px-2 py-0.5 text-[10px] font-bold uppercase text-white"
-                style={{ backgroundColor: slide.category.color }}
-              >
+              <span className="bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
                 {slide.category.name}
               </span>
             )}
             <RelativeTime date={slide.publishedAt} className="text-[11px] text-white/70" />
           </div>
-          <h2 className="font-headline line-clamp-3 text-xl font-bold leading-tight text-white md:text-2xl lg:text-3xl">
+          <h2 className="font-headline line-clamp-3 bg-primary/90 px-3 py-2 text-lg font-bold leading-tight text-white md:text-2xl lg:text-[28px]">
             {slide.title}
           </h2>
           {!compact && slide.excerpt && (

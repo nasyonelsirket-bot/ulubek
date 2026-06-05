@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import HeroSlider from "@/components/home/HeroSlider";
-import BreakingNewsSidebar from "@/components/home/BreakingNewsSidebar";
+import HeroTopTrio from "@/components/home/HeroTopTrio";
+import HeroSidebarList from "@/components/home/HeroSidebarList";
+import HeroMarketsBar from "@/components/home/HeroMarketsBar";
+import GozeKacmasinBlock from "@/components/home/GozeKacmasinBlock";
 import InfiniteNewsFeed from "@/components/home/InfiniteNewsFeed";
-import TrendBlock from "@/components/home/TrendBlock";
 import CategoryBlock from "@/components/home/CategoryBlock";
-import HomeSonDakika from "@/components/home/HomeSonDakika";
 import {
   getFeaturedArticles,
   getPublishedArticlesPage,
@@ -52,30 +53,32 @@ function mapArticle(a: {
 }
 
 export default async function HomePage() {
-  const [featured, breaking, trending24, trending7d, ...categoryResults] = await Promise.all([
+  const [featured, breaking, trending24, ...categoryResults] = await Promise.all([
     getFeaturedArticles(),
     getBreakingNews(),
-    getTrendingArticles(24, 8),
-    getTrendingArticles(168, 8),
+    getTrendingArticles(24, 10),
     ...HOME_CATEGORY_SLUGS.map((slug) =>
       getArticlesByCategorySlug(slug, ARTICLES_PER_CATEGORY)
     ),
   ]);
 
-  let sliderSlides = featured.slice(0, 6).map(mapArticle);
-  if (sliderSlides.length === 0) {
-    const { articles } = await getPublishedArticlesPage(1, 6);
-    sliderSlides = articles.map(mapArticle);
+  let allFeatured = featured.map(mapArticle);
+  if (allFeatured.length === 0) {
+    const { articles } = await getPublishedArticlesPage(1, 12);
+    allFeatured = articles.map(mapArticle);
   }
 
-  const heroIds = sliderSlides.map((a) => a.id);
+  const topTrio = allFeatured.slice(0, 3);
+  const sliderSlides = allFeatured.slice(3, 9);
+  const heroIds = [...topTrio, ...sliderSlides].map((a) => a.id);
+
   const breakingItems = breaking.slice(0, 10).map(mapArticle);
-  const sidebarBreaking =
+  const sidebarItems =
     breakingItems.length > 0
       ? breakingItems
-      : (await getPublishedArticlesPage(1, 10, heroIds)).articles.map(mapArticle);
+      : (await getPublishedArticlesPage(1, 6, heroIds)).articles.map(mapArticle);
 
-  const excludeIds = [...new Set([...heroIds, ...sidebarBreaking.map((a) => a.id)])];
+  const excludeIds = [...new Set([...heroIds, ...sidebarItems.map((a) => a.id)])];
 
   const { articles: feedInitial, hasMore: feedHasMore } = await getPublishedArticlesPage(
     1,
@@ -83,24 +86,33 @@ export default async function HomePage() {
     excludeIds
   );
 
-  return (
-    <div className="mx-auto max-w-[1400px] px-3 pt-3 pb-0">
-      <HomeSonDakika items={sidebarBreaking} />
+  const gozeKacmasinArticles =
+    trending24.length > 0
+      ? trending24.map(mapArticle)
+      : (await getPublishedArticlesPage(1, 7, excludeIds)).articles.map(mapArticle);
 
-      <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <div className="lg:col-span-8">
-          <HeroSlider slides={sliderSlides} />
+  return (
+    <div className="mx-auto max-w-[1280px] px-3 pt-3 pb-0">
+      {/* Hero — Hürriyet tarzı */}
+      <section className="mb-6">
+        <HeroTopTrio items={topTrio} />
+
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-3">
+          <div className="lg:col-span-8">
+            <HeroSlider slides={sliderSlides.length > 0 ? sliderSlides : allFeatured.slice(0, 6)} />
+          </div>
+          <div className="lg:col-span-4">
+            <HeroSidebarList items={sidebarItems} title="Son Dakika" />
+          </div>
         </div>
-        <div className="hidden lg:col-span-4 lg:block">
-          <BreakingNewsSidebar items={sidebarBreaking} />
-        </div>
+
+        <HeroMarketsBar />
       </section>
 
-      <TrendBlock
-        articles24h={trending24.map(mapArticle)}
-        articles7d={trending7d.map(mapArticle)}
-      />
+      {/* Gözden Kaçmasın */}
+      <GozeKacmasinBlock articles={gozeKacmasinArticles} />
 
+      {/* Kategori gridleri — 4 sütun */}
       {HOME_CATEGORY_SLUGS.map((slug, i) => {
         const cat = categories.find((c) => c.slug === slug);
         const articles = categoryResults[i] ?? [];
@@ -116,8 +128,9 @@ export default async function HomePage() {
         );
       })}
 
+      {/* Haber akışı */}
       <section className="mb-6 mt-2">
-        <div className="portal-section-head mb-4">
+        <div className="mb-3 flex items-center justify-between border-b-2 border-[var(--navy)] pb-2">
           <h2 className="font-headline text-lg font-bold text-[var(--navy)]">Haber Akışı</h2>
         </div>
         <InfiniteNewsFeed

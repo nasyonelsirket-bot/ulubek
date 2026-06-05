@@ -37,7 +37,7 @@ export default function PortalArticleCard({
           className
         )}
       >
-        <Link href={`/haber/${article.slug}`} className={cn("relative w-28 shrink-0 overflow-hidden rounded-md", aspect)}>
+        <Link href={`/haber/${article.slug}`} className={cn("relative w-28 shrink-0 overflow-hidden bg-muted", aspect)}>
           <ArticleImage
             src={article.image}
             alt={article.title}
@@ -66,11 +66,11 @@ export default function PortalArticleCard({
   return (
     <article
       className={cn(
-        "portal-card group overflow-hidden rounded-lg border border-border bg-white transition-shadow hover:shadow-md",
+        "portal-card group overflow-hidden border border-border bg-white transition-shadow hover:shadow-md",
         className
       )}
     >
-      <Link href={`/haber/${article.slug}`} className={cn("relative block w-full overflow-hidden", aspect)}>
+      <Link href={`/haber/${article.slug}`} className={cn("relative block w-full overflow-hidden bg-muted", aspect)}>
         <ArticleImage
           src={article.image}
           alt={article.title}
@@ -78,13 +78,15 @@ export default function PortalArticleCard({
           priority={priority}
           sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
         />
+        {article.category && variant === "compact" && (
+          <span className="absolute left-0 top-0 bg-primary px-2 py-0.5 text-[9px] font-bold uppercase text-white">
+            {article.category.name}
+          </span>
+        )}
       </Link>
-      <div className="p-3">
-        {article.category && (
-          <span
-            className="mb-1.5 inline-block text-[10px] font-bold uppercase tracking-wider"
-            style={{ color: article.category.color }}
-          >
+      <div className="p-2.5 md:p-3">
+        {article.category && variant !== "compact" && (
+          <span className="mb-1.5 inline-block bg-primary px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
             {article.category.name}
           </span>
         )}

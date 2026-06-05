@@ -1,5 +1,5 @@
 import Link from "next/link";
-import PortalArticleCard, { PortalArticleGrid } from "@/components/news/PortalArticleCard";
+import { PortalArticleGrid } from "@/components/news/PortalArticleCard";
 
 interface ArticleItem {
   id: string;
@@ -22,27 +22,15 @@ interface CategoryBlockProps {
 export default function CategoryBlock({ name, slug, color, articles }: CategoryBlockProps) {
   if (articles.length === 0) return null;
 
-  const [lead, ...rest] = articles;
-
   return (
     <section className="mb-8">
-      <div className="portal-section-head mb-4 flex items-center justify-between" style={{ borderColor: color }}>
+      <div className="mb-3 flex items-center justify-between border-b-2 pb-2" style={{ borderColor: color }}>
         <h2 className="font-headline text-lg font-bold text-[var(--navy)]">{name}</h2>
         <Link href={`/kategori/${slug}`} className="text-xs font-bold uppercase hover:underline" style={{ color }}>
-          Tümü →
+          Tümünü Gör →
         </Link>
       </div>
-
-      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <PortalArticleCard article={lead} priority />
-        </div>
-        <div className="lg:col-span-7">
-          <PortalArticleGrid articles={rest.slice(0, 4)} columns={2} variant="compact" />
-        </div>
-      </div>
-
-      <PortalArticleGrid articles={rest.slice(4, 12)} columns="auto" />
+      <PortalArticleGrid articles={articles.slice(0, 8)} columns={4} variant="compact" priorityCount={4} />
     </section>
   );
 }
