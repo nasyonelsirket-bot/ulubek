@@ -12,6 +12,7 @@ import {
   Search,
   ImageIcon,
   ScrollText,
+  FolderOpen,
 } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/articles", label: "Haberler", icon: Newspaper },
   { href: "/admin/sources", label: "Kaynak Yönetimi", icon: Rss },
+  { href: "/admin/categories", label: "Kategoriler", icon: FolderOpen },
   { href: "/admin/ai", label: "AI Ayarları", icon: Sparkles },
   { href: "/admin/api-keys", label: "API Anahtarları", icon: Key },
   { href: "/admin/images", label: "Görsel Yönetimi", icon: ImageIcon },

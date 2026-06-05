@@ -14,6 +14,14 @@ import {
   contentHash,
 } from "./duplicate-check";
 import { notifyArticlePublished } from "@/lib/live/notify";
+import { publishArticleToSocial } from "@/lib/social/publish";
+import {
+  savePipelineArticleToDb,
+  getExistingArticlesForPipeline,
+  countArticlesInDb,
+} from "@/lib/db/articles";
+import { getActiveSourcesForPipeline } from "@/lib/db/pipeline-sources";
+import { checkDatabaseConnection } from "@/lib/db/prisma";
 import {
   getAllSourcesFromStore,
   getSeenUrls,
@@ -71,6 +79,8 @@ interface FeedItem {
   sourceImage?: string;
 }
 
+export type { FeedItem };
+
 function resolveUrlType(source: MockSource): SourceUrlType {
   if (source.urlType) return source.urlType;
   if (resolveFetchType(source) === "RSS") return "RSS";
@@ -126,7 +136,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     trigger = sourceId ? "single" : bootstrap ? "bootstrap" : force ? "manual" : "cron",
   } = options;
 
-  let sources = getAllSourcesFromStore().filter((s) => s.isActive);
+  let sources = (await getActiveSourcesForPipeline()).filter((s) => s.isActive);
   if (sourceId) {
     sources = sources.filter((s) => s.id === sourceId);
   } else if (respectInterval && !bootstrap) {
@@ -179,7 +189,12 @@ export async function runBootstrapImport(maxRounds = 8): Promise<PipelineSummary
   let lastSummary: PipelineSummary | null = null;
   let rounds = 0;
 
-  while (getDynamicArticleCount() < BOOTSTRAP_ARTICLE_TARGET && rounds < maxRounds) {
+  async function articleCount(): Promise<number> {
+    if (await checkDatabaseConnection()) return countArticlesInDb();
+    return getDynamicArticleCount();
+  }
+
+  while ((await articleCount()) < BOOTSTRAP_ARTICLE_TARGET && rounds < maxRounds) {
     lastSummary = await runAutoNewsPipeline({
       force: true,
       bootstrap: true,
@@ -288,10 +303,50 @@ async function fetchItemsFromSource(source: MockSource, bootstrap: boolean): Pro
 }
 
 async function processSource(source: MockSource, bootstrap = false): Promise<PipelineResult> {
+  try {
+    const items = await fetchItemsFromSource(source, bootstrap);
+    if (items.length === 0) {
+      const empty: PipelineResult = {
+        sourceId: source.id,
+        sourceName: source.name,
+        found: 0,
+        imported: 0,
+        skipped: 0,
+        duplicate: 0,
+        spam: 0,
+        errors: ["Son 10 günde haber bulunamadı"],
+      };
+      updateSourceFetchTime(source.id, null, 0);
+      return empty;
+    }
+    return processItemsWithSource(source, items, bootstrap);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
+    updateSourceFetchTime(source.id, msg, 0);
+    return {
+      sourceId: source.id,
+      sourceName: source.name,
+      found: 0,
+      imported: 0,
+      skipped: 0,
+      duplicate: 0,
+      spam: 0,
+      errors: [msg],
+    };
+  }
+}
+
+/** RSS, WEB veya NewsAPI'den gelen maddeleri AI pipeline'dan geçirir. */
+export async function processItemsWithSource(
+  source: MockSource,
+  items: FeedItem[],
+  bootstrap = false,
+  defaultCategorySlug?: string
+): Promise<PipelineResult> {
   const result: PipelineResult = {
     sourceId: source.id,
     sourceName: source.name,
-    found: 0,
+    found: items.length,
     imported: 0,
     skipped: 0,
     duplicate: 0,
@@ -300,17 +355,19 @@ async function processSource(source: MockSource, bootstrap = false): Promise<Pip
   };
 
   try {
-    const items = await fetchItemsFromSource(source, bootstrap);
-    result.found = items.length;
-
     if (items.length === 0) {
-      result.errors.push("Son 10 günde haber bulunamadı");
       updateSourceFetchTime(source.id, null, 0);
       return result;
     }
 
     const seen = getSeenUrls();
-    const existingArticles = getAllArticlesFromStore();
+    const dbArticles = await getExistingArticlesForPipeline();
+    const jsonArticles = getAllArticlesFromStore();
+    const mergedIds = new Set(dbArticles.map((a) => a.id));
+    const existingArticles = [
+      ...dbArticles,
+      ...jsonArticles.filter((a) => !mergedIds.has(a.id)),
+    ];
     const articleIndex = buildExistingArticleIndex(existingArticles);
     const categoryList = categories.map((c) => ({
       slug: c.slug,
@@ -390,7 +447,10 @@ async function processSource(source: MockSource, bootstrap = false): Promise<Pip
           continue;
         }
 
-        const categorySlug = aiResult.categorySlug || matchCategory(title, rawContent, source.categoryId);
+        const categorySlug =
+          defaultCategorySlug ||
+          aiResult.categorySlug ||
+          matchCategory(title, rawContent, source.categoryId);
         const articleId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const imageResult = await resolveArticleImage({
           title: aiResult.title,
@@ -426,19 +486,55 @@ async function processSource(source: MockSource, bootstrap = false): Promise<Pip
           aiProcessed: true,
         };
 
-        saveArticle(article);
+        const dbArticle = await savePipelineArticleToDb({
+          title: article.title,
+          slug: article.slug,
+          excerpt: article.excerpt,
+          content: article.content,
+          categorySlug,
+          image: article.image,
+          imageSquare: article.imageSquare,
+          imageStory: article.imageStory,
+          publishedAt: article.publishedAt,
+          readTime: article.readTime,
+          featured: article.featured,
+          breaking: article.breaking,
+          tags: article.tags,
+          metaTitle: aiResult.metaTitle,
+          metaDescription: aiResult.metaDescription,
+          sourceId: source.id,
+          sourceName: source.name,
+          sourceUrl: link || undefined,
+          originalTitle: title,
+          originalContent: rawContent,
+        });
+
+        const saved = dbArticle ?? article;
+        if (!dbArticle) saveArticle(article);
+        else saveArticle(saved);
+
         if (link) markSeen(link);
         articleIndex.titles.push(aiResult.title);
         articleIndex.contentHashes.add(contentHash(aiResult.content));
         updateQueueItem(queueEntry.id, {
           status: "PUBLISHED",
-          articleId: article.id,
+          articleId: saved.id,
           imagePrompt: `[${imageResult.provider}] ${imageResult.prompt}`,
         });
-        void notifyArticlePublished(article.id);
+        void notifyArticlePublished(saved.id);
+        void publishArticleToSocial({
+          title: saved.title,
+          excerpt: saved.excerpt,
+          slug: saved.slug,
+          breaking: saved.breaking,
+          image: saved.image,
+        });
         result.imported++;
 
-        if (bootstrap && getDynamicArticleCount() >= BOOTSTRAP_ARTICLE_TARGET) break;
+        const currentCount = await checkDatabaseConnection()
+          ? await countArticlesInDb()
+          : getDynamicArticleCount();
+        if (bootstrap && currentCount >= BOOTSTRAP_ARTICLE_TARGET) break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "İşleme hatası";
         result.errors.push(msg);

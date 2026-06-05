@@ -12,9 +12,9 @@ export const HOME_CATEGORY_SLUGS = [
   "gundem",
   "ekonomi",
   "dunya",
-  "teknoloji",
   "spor",
-  "saglik",
+  "teknoloji",
+  "magazin",
 ] as const;
 
 export const ARTICLES_PER_CATEGORY = 8;

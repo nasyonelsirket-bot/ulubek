@@ -21,6 +21,7 @@ function mergeWithEnv(settings: AppSettings): AppSettings {
     ...settings,
     openaiApiKey: settings.openaiApiKey || process.env.OPENAI_API_KEY || "",
     geminiApiKey: settings.geminiApiKey || process.env.GEMINI_API_KEY || "",
+    newsApiKey: settings.newsApiKey || process.env.NEWS_API_KEY || "",
     openaiModel: settings.openaiModel || process.env.OPENAI_MODEL || DEFAULT_SETTINGS.openaiModel,
     geminiModel: settings.geminiModel || process.env.GEMINI_MODEL || DEFAULT_SETTINGS.geminiModel,
   };
@@ -48,6 +49,7 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   if (partial.twitterApiSecret === "") next.twitterApiSecret = current.twitterApiSecret;
   if (partial.twitterBearerToken === "") next.twitterBearerToken = current.twitterBearerToken;
   if (partial.instagramAccessToken === "") next.instagramAccessToken = current.instagramAccessToken;
+  if (partial.newsApiKey === "") next.newsApiKey = current.newsApiKey;
 
   const payload = {
     aiProvider: next.aiProvider,
@@ -75,6 +77,8 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
     twitterAccounts: next.twitterAccounts,
     instagramAccessToken: next.instagramAccessToken,
     instagramAccountId: next.instagramAccountId,
+    newsApiKey: next.newsApiKey,
+    newsApiEnabled: next.newsApiEnabled,
   };
 
   if (!writeRuntimeJson("settings.json", payload)) {
@@ -119,6 +123,9 @@ export function getPublicSettings(): PublicSettings {
     instagramConfigured: !!s.instagramAccessToken,
     twitterAccounts: s.twitterAccounts,
     instagramAccountId: s.instagramAccountId,
+    newsApiKeyConfigured: !!s.newsApiKey,
+    newsApiKeyPreview: maskKey(s.newsApiKey),
+    newsApiEnabled: s.newsApiEnabled,
   };
 }
 

@@ -64,6 +64,12 @@ export function buildSettingsPartial(body: Record<string, unknown>): Partial<App
   if (typeof body.geminiApiKey === "string" && body.geminiApiKey.trim()) {
     partial.geminiApiKey = body.geminiApiKey.trim();
   }
+  if (typeof body.newsApiKey === "string" && body.newsApiKey.trim()) {
+    partial.newsApiKey = body.newsApiKey.trim();
+  }
+  if (typeof body.newsApiEnabled === "boolean") {
+    partial.newsApiEnabled = body.newsApiEnabled;
+  }
 
   return partial;
 }

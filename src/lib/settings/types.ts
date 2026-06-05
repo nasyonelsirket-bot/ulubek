@@ -29,6 +29,8 @@ export interface AppSettings {
   twitterAccounts: string;
   instagramAccessToken: string;
   instagramAccountId: string;
+  newsApiKey: string;
+  newsApiEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -57,6 +59,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   twitterAccounts: "",
   instagramAccessToken: "",
   instagramAccountId: "",
+  newsApiKey: "",
+  newsApiEnabled: true,
 };
 
 export interface PublicSettings {
@@ -87,4 +91,7 @@ export interface PublicSettings {
   instagramConfigured: boolean;
   twitterAccounts: string;
   instagramAccountId: string;
+  newsApiKeyConfigured: boolean;
+  newsApiKeyPreview: string;
+  newsApiEnabled: boolean;
 }

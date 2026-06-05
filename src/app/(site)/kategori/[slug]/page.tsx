@@ -5,6 +5,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import { getCategoryBySlug, getArticlesByCategorySlug } from "@/lib/services/articles";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 
+export const revalidate = 60;
+
 interface CategoryPageProps {
   params: Promise<{ slug: string }>;
 }

@@ -10,14 +10,24 @@ import { getAllArticlesFromStore } from "@/lib/ai-engine/store";
 import type { ArticleWithRelations, RawArticle } from "@/data/types";
 import { NEWS_SITEMAP_MAX_AGE_HOURS } from "@/lib/seo/config";
 import { estimateViewCount } from "@/lib/utils/view-count";
+import {
+  getPublishedArticlesFromDb,
+  getArticleBySlugFromDb,
+  searchArticlesInDb,
+} from "@/lib/db/articles";
+import { checkDatabaseConnection } from "@/lib/db/prisma";
 
 export type { ArticleWithRelations } from "@/data/types";
 
 const publishedFilter = (article: RawArticle) =>
   (article.status ?? "PUBLISHED") === "PUBLISHED";
 
-function getMergedRaw(): RawArticle[] {
+async function getMergedRaw(): Promise<RawArticle[]> {
   try {
+    if (await checkDatabaseConnection()) {
+      const dbArticles = await getPublishedArticlesFromDb({ limit: 500 });
+      if (dbArticles.length > 0) return dbArticles;
+    }
     return getAllArticlesFromStore().filter(publishedFilter);
   } catch {
     return getAllRawArticles().filter(publishedFilter);
@@ -25,7 +35,7 @@ function getMergedRaw(): RawArticle[] {
 }
 
 export async function getPublishedArticles(limit?: number): Promise<ArticleWithRelations[]> {
-  const raw = getMergedRaw();
+  const raw = await getMergedRaw();
   return mapRawArticles(limit ? raw.slice(0, limit) : raw);
 }
 
@@ -35,7 +45,7 @@ export async function getPublishedArticlesPage(
   excludeIds: string[] = []
 ): Promise<{ articles: ArticleWithRelations[]; hasMore: boolean; total: number }> {
   const exclude = new Set(excludeIds);
-  const sorted = [...getMergedRaw()].sort(
+  const sorted = [...(await getMergedRaw())].sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
   const filtered = sorted.filter((a) => !exclude.has(a.id));
@@ -50,12 +60,22 @@ export async function getPublishedArticlesPage(
 }
 
 export async function getFeaturedArticles(): Promise<ArticleWithRelations[]> {
-  return mapRawArticles(getMergedRaw().filter((a) => a.featured));
+  if (await checkDatabaseConnection()) {
+    const featured = await getPublishedArticlesFromDb({ limit: 12, featured: true });
+    if (featured.length > 0) return mapRawArticles(featured);
+  }
+  return mapRawArticles((await getMergedRaw()).filter((a) => a.featured));
 }
 
 export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
+  let merged: RawArticle[] = [];
+  if (await checkDatabaseConnection()) {
+    merged = await getPublishedArticlesFromDb({ limit: 20, breaking: true });
+  }
+  if (merged.length === 0) {
+    merged = (await getMergedRaw()).filter((a) => a.breaking);
+  }
   const breaking = getBreakingNewsArticles();
-  const merged = getMergedRaw().filter((a) => a.breaking);
   const ids = new Set(merged.map((a) => a.id));
   const combined = [...merged];
   for (const b of breaking) {
@@ -65,7 +85,10 @@ export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
 }
 
 export async function getArticleBySlug(slug: string): Promise<ArticleWithRelations | null> {
-  const fromStore = getMergedRaw().find((a) => a.slug === slug);
+  const fromDb = await getArticleBySlugFromDb(slug);
+  if (fromDb && publishedFilter(fromDb)) return mapRawArticle(fromDb);
+
+  const fromStore = (await getMergedRaw()).find((a) => a.slug === slug);
   const raw = fromStore ?? getRawArticleBySlug(slug);
   if (!raw || !publishedFilter(raw)) return null;
   return mapRawArticle(raw);
@@ -75,15 +98,23 @@ export async function getArticlesByCategorySlug(
   categorySlug: string,
   limit?: number
 ): Promise<ArticleWithRelations[]> {
+  if (await checkDatabaseConnection()) {
+    const dbArticles = await getPublishedArticlesFromDb({
+      categorySlug,
+      limit: limit ?? 20,
+    });
+    if (dbArticles.length > 0) return mapRawArticles(dbArticles);
+  }
+
   const category = getDataCategoryBySlug(categorySlug);
   if (!category) return [];
-  const filtered = getMergedRaw().filter((a) => a.categoryId === category.id);
+  const filtered = (await getMergedRaw()).filter((a) => a.categoryId === category.id);
   return mapRawArticles(limit ? filtered.slice(0, limit) : filtered);
 }
 
 export async function getRelatedArticles(articleId: string, categoryId: string, limit = 4) {
   return mapRawArticles(
-    getMergedRaw()
+    (await getMergedRaw())
       .filter((a) => a.categoryId === categoryId && a.id !== articleId)
       .slice(0, limit)
   );
@@ -91,7 +122,7 @@ export async function getRelatedArticles(articleId: string, categoryId: string, 
 
 export async function getTrendingArticles(hours: 24 | 168, limit = 6): Promise<ArticleWithRelations[]> {
   const since = Date.now() - hours * 60 * 60 * 1000;
-  const filtered = getMergedRaw().filter((a) => new Date(a.publishedAt).getTime() >= since);
+  const filtered = (await getMergedRaw()).filter((a) => new Date(a.publishedAt).getTime() >= since);
   const sorted = [...filtered].sort((a, b) => {
     const va = estimateViewCount(a.id, a.publishedAt);
     const vb = estimateViewCount(b.id, b.publishedAt);
@@ -104,7 +135,7 @@ export async function getNextArticle(
   currentId: string,
   categoryId: string
 ): Promise<ArticleWithRelations | null> {
-  const sorted = [...getMergedRaw()].sort(
+  const sorted = [...(await getMergedRaw())].sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
   const idx = sorted.findIndex((a) => a.id === currentId);
@@ -117,20 +148,42 @@ export async function getNextArticle(
 }
 
 export async function searchPublishedArticles(query: string): Promise<ArticleWithRelations[]> {
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   if (!q) return [];
 
+  if (await checkDatabaseConnection()) {
+    const dbResults = await searchArticlesInDb(q, 30);
+    if (dbResults.length > 0) return mapRawArticles(dbResults);
+  }
+
+  const lower = q.toLowerCase();
   return mapRawArticles(
-    getMergedRaw().filter(
+    (await getMergedRaw()).filter(
       (a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.excerpt.toLowerCase().includes(q) ||
-        a.tags.some((t) => t.toLowerCase().includes(q))
+        a.title.toLowerCase().includes(lower) ||
+        a.excerpt.toLowerCase().includes(lower) ||
+        a.tags.some((t) => t.toLowerCase().includes(lower))
     )
   );
 }
 
 export async function getAllCategories() {
+  try {
+    const { listCategoriesFromDb } = await import("@/lib/db/sources");
+    if (await checkDatabaseConnection()) {
+      const dbCategories = await listCategoriesFromDb();
+      return dbCategories.map(({ id, name, slug, description, color, sortOrder }) => ({
+        id,
+        name,
+        slug,
+        description,
+        color,
+        sortOrder,
+      }));
+    }
+  } catch {
+    // fallback
+  }
   return [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
@@ -139,15 +192,16 @@ export async function getCategoryBySlug(slug: string) {
 }
 
 export async function getAllArticleSlugs() {
-  return getMergedRaw().map((a) => ({ slug: a.slug }));
+  return (await getMergedRaw()).map((a) => ({ slug: a.slug }));
 }
 
 export async function getAllCategorySlugs() {
-  return categories.map((c) => ({ slug: c.slug }));
+  const cats = await getAllCategories();
+  return cats.map((c) => ({ slug: c.slug }));
 }
 
 export async function getArticlesForSitemap() {
-  return getMergedRaw().map((a) => ({
+  return (await getMergedRaw()).map((a) => ({
     slug: a.slug,
     updatedAt: new Date(a.updatedAt ?? a.publishedAt),
     publishedAt: new Date(a.publishedAt),
@@ -155,7 +209,8 @@ export async function getArticlesForSitemap() {
 }
 
 export async function getCategoriesForSitemap() {
-  return categories.map((c) => ({
+  const cats = await getAllCategories();
+  return cats.map((c) => ({
     slug: c.slug,
     updatedAt: new Date(),
   }));
@@ -164,7 +219,7 @@ export async function getCategoriesForSitemap() {
 export async function getArticlesForNewsSitemap(maxAgeHours = NEWS_SITEMAP_MAX_AGE_HOURS) {
   const since = Date.now() - maxAgeHours * 60 * 60 * 1000;
 
-  return getMergedRaw()
+  return (await getMergedRaw())
     .filter((a) => new Date(a.publishedAt).getTime() >= since)
     .slice(0, 1000)
     .map((a) => ({
@@ -176,13 +231,19 @@ export async function getArticlesForNewsSitemap(maxAgeHours = NEWS_SITEMAP_MAX_A
 }
 
 export async function getArticleById(id: string): Promise<ArticleWithRelations | null> {
-  const raw = getMergedRaw().find((a) => a.id === id) ?? getRawArticleById(id);
+  const raw = (await getMergedRaw()).find((a) => a.id === id) ?? getRawArticleById(id);
   if (!raw) return null;
   return mapRawArticle(raw);
 }
 
 export async function getAllArticlesForAdmin(): Promise<ArticleWithRelations[]> {
   try {
+    if (await checkDatabaseConnection()) {
+      const dbArticles = await getPublishedArticlesFromDb({ limit: 200, status: "PUBLISHED" });
+      const drafts = await getPublishedArticlesFromDb({ limit: 100, status: "DRAFT" });
+      const all = [...dbArticles, ...drafts];
+      if (all.length > 0) return mapRawArticles(all);
+    }
     return mapRawArticles(getAllArticlesFromStore());
   } catch {
     return mapRawArticles(getAllRawArticles());
