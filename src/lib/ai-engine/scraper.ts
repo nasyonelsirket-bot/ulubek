@@ -10,6 +10,49 @@ export interface ScrapedArticle {
 
 const USER_AGENT = "UlubekMedya-Bot/2.0 (+https://ulubekmedya.com)";
 
+function resolveUrl(base: string, href?: string | null): string | undefined {
+  if (!href?.trim()) return undefined;
+  try {
+    return new URL(href.trim(), base).href;
+  } catch {
+    return href.trim();
+  }
+}
+
+function pickMeta(html: string, pageUrl: string): {
+  title?: string;
+  content?: string;
+  image?: string;
+  publishedAt?: string;
+} {
+  const $ = cheerio.load(html.slice(0, 200_000));
+
+  const title =
+    $("meta[property='og:title']").attr("content")?.trim() ||
+    $("meta[name='twitter:title']").attr("content")?.trim() ||
+    $("title").text().trim();
+
+  const content =
+    $("meta[property='og:description']").attr("content")?.trim() ||
+    $("meta[name='twitter:description']").attr("content")?.trim() ||
+    $("meta[name='description']").attr("content")?.trim();
+
+  const image = resolveUrl(
+    pageUrl,
+    $("meta[property='og:image']").attr("content") ||
+      $("meta[name='twitter:image']").attr("content") ||
+      $("meta[property='og:image:url']").attr("content") ||
+      $("link[rel='image_src']").attr("href")
+  );
+
+  const publishedAt =
+    $("meta[property='article:published_time']").attr("content")?.trim() ||
+    $("meta[name='date']").attr("content")?.trim() ||
+    $("time[datetime]").first().attr("datetime")?.trim();
+
+  return { title, content, image, publishedAt };
+}
+
 /** rss.haberler.com / rss.sondakika.com HTML haber listeleri */
 export function isPortalRssUrl(url: string): boolean {
   try {
@@ -23,7 +66,7 @@ export function isPortalRssUrl(url: string): boolean {
 export async function scrapePortalRssPage(baseUrl: string, limit = 15): Promise<ScrapedArticle[]> {
   const res = await fetch(baseUrl, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) throw new Error(`Portal feed alınamadı: HTTP ${res.status}`);
@@ -39,14 +82,9 @@ export async function scrapePortalRssPage(baseUrl: string, limit = 15): Promise<
     const title = $(el).text().replace(/\s+/g, " ").trim();
     if (!href || !title || title.length < 12) return;
 
-    let url = href;
-    try {
-      url = new URL(href, baseUrl).href;
-    } catch {
-      return;
-    }
+    const url = resolveUrl(baseUrl, href);
+    if (!url || seen.has(url)) return;
 
-    if (seen.has(url)) return;
     seen.add(url);
     items.push({ title, url, content: title });
   });
@@ -64,26 +102,19 @@ export async function scrapeArticleMeta(
 ): Promise<Pick<ScrapedArticle, "title" | "content" | "image" | "publishedAt"> | null> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) return null;
 
-  const html = (await res.text()).slice(0, 100_000);
-  const pick = (prop: string) =>
-    html.match(new RegExp(`property="${prop}"\\s+content="([^"]+)"`, "i"))?.[1] ||
-    html.match(new RegExp(`content="([^"]+)"\\s+property="${prop}"`, "i"))?.[1];
+  const html = await res.text();
+  const meta = pickMeta(html, url);
 
-  const title = pick("og:title")?.trim();
-  const content = pick("og:description")?.trim();
-  const image = pick("og:image")?.trim();
-  const publishedAt = pick("article:published_time")?.trim();
-
-  if (!title) return null;
+  if (!meta.title) return null;
   return {
-    title,
-    content: content && content.length >= 40 ? content : title,
-    image,
-    publishedAt,
+    title: meta.title,
+    content: meta.content && meta.content.length >= 20 ? meta.content : meta.title,
+    image: meta.image,
+    publishedAt: meta.publishedAt,
   };
 }
 
@@ -91,7 +122,7 @@ export async function scrapeArticleMeta(
 export async function scrapePortalArticleLinks(pageUrl: string, limit = 20): Promise<ScrapedArticle[]> {
   const res = await fetch(pageUrl, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) throw new Error(`Liste sayfası alınamadı: HTTP ${res.status}`);
@@ -108,14 +139,8 @@ export async function scrapePortalArticleLinks(pageUrl: string, limit = 20): Pro
     let title = $(el).text().replace(/\s+/g, " ").trim();
     if (!href) return;
 
-    let url = href;
-    try {
-      url = new URL(href, origin).href;
-    } catch {
-      return;
-    }
-
-    if (!url.startsWith(origin)) return;
+    const url = resolveUrl(origin, href);
+    if (!url || !url.startsWith(origin)) return;
     if (seen.has(url)) return;
     if (/(reklam|iletisim|giris|login|#)/i.test(url)) return;
 
@@ -134,7 +159,7 @@ export async function scrapePortalArticleLinks(pageUrl: string, limit = 20): Pro
 export async function scrapeWebsite(baseUrl: string, limit = 8): Promise<ScrapedArticle[]> {
   const res = await fetch(baseUrl, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) throw new Error(`Sayfa alınamadı: HTTP ${res.status}`);
@@ -151,14 +176,8 @@ export async function scrapeWebsite(baseUrl: string, limit = 8): Promise<Scraped
     const title = $(el).text().replace(/\s+/g, " ").trim();
     if (!href || !title || title.length < 20 || title.length > 200) return;
 
-    let url = href;
-    try {
-      url = new URL(href, origin).href;
-    } catch {
-      return;
-    }
-
-    if (!url.startsWith(origin) || seen.has(url)) return;
+    const url = resolveUrl(origin, href);
+    if (!url || !url.startsWith(origin) || seen.has(url)) return;
     if (/\.(pdf|jpg|png|gif|zip|doc)$/i.test(url)) return;
     if (/(login|giris|iletisim|contact|#)/i.test(url)) return;
 
@@ -172,31 +191,28 @@ export async function scrapeWebsite(baseUrl: string, limit = 8): Promise<Scraped
 export async function scrapeArticlePage(url: string): Promise<ScrapedArticle | null> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT },
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) return null;
 
   const html = await res.text();
+  const meta = pickMeta(html, url);
   const $ = cheerio.load(html);
   $("script, style, nav, footer, header").remove();
 
   const title =
-    $("meta[property='og:title']").attr("content") ||
+    meta.title ||
     $("h1").first().text().trim() ||
     $("title").text().trim();
 
   const content =
-    $("meta[property='og:description']").attr("content") ||
+    meta.content ||
     $("article p").slice(0, 6).text().trim() ||
     $("p").slice(0, 8).text().trim();
 
-  const image = $("meta[property='og:image']").attr("content");
+  const image = meta.image || resolveUrl(url, $("meta[property='og:image']").attr("content"));
 
-  const publishedAt =
-    $("meta[property='article:published_time']").attr("content") ||
-    $("time[datetime]").first().attr("datetime") ||
-    $("meta[name='date']").attr("content") ||
-    undefined;
+  const publishedAt = meta.publishedAt;
 
   if (!title || content.length < 40) return null;
   return { title, url, content: content.slice(0, 5000), image, publishedAt };

@@ -327,14 +327,21 @@ function extractRssImage(item: Record<string, unknown>): string | undefined {
 
 async function enrichPortalItems(links: ScrapedArticle[], skipEnrich: boolean): Promise<FeedItem[]> {
   if (skipEnrich) {
-    const batchSize = 4;
-    const items: FeedItem[] = [];
+    const batchSize = 10;
+    const batches: ScrapedArticle[][] = [];
     for (let i = 0; i < links.length; i += batchSize) {
-      const batch = links.slice(i, i + batchSize);
-      const metas = await Promise.all(batch.map((link) => scrapeArticleMeta(link.url)));
-      for (let j = 0; j < batch.length; j++) {
-        const link = batch[j];
-        const meta = metas[j];
+      batches.push(links.slice(i, i + batchSize));
+    }
+
+    const batchResults = await Promise.all(
+      batches.map((batch) =>
+        Promise.all(batch.map((link) => scrapeArticleMeta(link.url).then((meta) => ({ link, meta }))))
+      )
+    );
+
+    const items: FeedItem[] = [];
+    for (const batch of batchResults) {
+      for (const { link, meta } of batch) {
         items.push({
           title: meta?.title || link.title,
           link: link.url,
@@ -399,7 +406,7 @@ async function fetchPortalItems(
     archiveLinks = batches.flat();
   }
 
-  const merged = dedupeScrapedLinks([...archiveLinks, ...rssLinks]);
+  const merged = dedupeScrapedLinks([...archiveLinks, ...rssLinks]).slice(0, itemLimit);
   const items = await enrichPortalItems(merged, skipEnrich);
   const filtered = items.filter(
     (item) => !item.publishedAt || isWithinLookbackDays(item.publishedAt, lookback)
@@ -600,12 +607,12 @@ export async function processItemsWithSource(
         rawContent = enriched.content;
       }
 
-      if (rawContent.length < 80) {
-        rawContent = `${rawContent}. ${title} hakkında son gelişmeler kamuoyunda takip ediliyor. Detaylar ve resmi açıklamalar paylaşıldıkça haber güncellenecektir.`;
+      if (rawContent.length < 80 && link) {
+        rawContent = title;
       }
 
       // Aynı kaynak URL'si — tekrar işleme (birebir aynı haber)
-      if (link && (seen.has(link) || (await isDuplicateSourceUrl(link)))) {
+      if (link && seen.has(link)) {
         result.skipped++;
         result.duplicate++;
         return;

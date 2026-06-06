@@ -10,7 +10,7 @@ import { serializeLiveArticle } from "@/lib/live/serialize";
 import { getWebSocketClientUrl } from "@/lib/live/config.server";
 import { getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/config";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const breaking = await getBreakingNews();

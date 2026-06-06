@@ -233,6 +233,129 @@ export async function getArticleBySlugFromDb(slug: string): Promise<RawArticle |
   return row ? mapPrismaArticleToRaw(row) : null;
 }
 
+const cardSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  excerpt: true,
+  image: true,
+  publishedAt: true,
+  readTime: true,
+  category: { select: { name: true, slug: true, color: true } },
+} as const;
+
+export async function getRelatedArticlesFromDb(
+  articleId: string,
+  categorySlug: string,
+  limit = 4
+): Promise<RawArticle[]> {
+  if (!(await checkDatabaseConnection())) return [];
+  const rows = await prisma.article.findMany({
+    where: {
+      status: "PUBLISHED",
+      id: { not: articleId },
+      category: { slug: categorySlug },
+    },
+    select: cardSelect,
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    excerpt: row.excerpt ?? "",
+    content: "",
+    categoryId: staticIdFromSlug(row.category.slug),
+    image: row.image ?? "",
+    publishedAt: row.publishedAt.toISOString(),
+    updatedAt: row.publishedAt.toISOString(),
+    readTime: row.readTime,
+    featured: false,
+    breaking: false,
+    tags: [],
+    status: "PUBLISHED" as const,
+    metaTitle: null,
+    metaDescription: null,
+    sourceName: null,
+    aiProcessed: true,
+    aiProcessingError: null,
+  }));
+}
+
+export async function getNextArticleFromDb(
+  currentId: string,
+  categorySlug: string
+): Promise<RawArticle | null> {
+  if (!(await checkDatabaseConnection())) return null;
+
+  const current = await prisma.article.findUnique({
+    where: { id: currentId },
+    select: { publishedAt: true },
+  });
+  if (!current) return null;
+
+  const row = await prisma.article.findFirst({
+    where: {
+      status: "PUBLISHED",
+      id: { not: currentId },
+      category: { slug: categorySlug },
+      publishedAt: { lt: current.publishedAt },
+    },
+    select: cardSelect,
+    orderBy: { publishedAt: "desc" },
+  });
+
+  if (!row) {
+    const fallback = await prisma.article.findFirst({
+      where: {
+        status: "PUBLISHED",
+        id: { not: currentId },
+        publishedAt: { lt: current.publishedAt },
+      },
+      select: cardSelect,
+      orderBy: { publishedAt: "desc" },
+    });
+    if (!fallback) return null;
+    return mapCardRowToRaw(fallback);
+  }
+
+  return mapCardRowToRaw(row);
+}
+
+function mapCardRowToRaw(row: {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  image: string | null;
+  publishedAt: Date;
+  readTime: number;
+  category: { name: string; slug: string; color: string };
+}): RawArticle {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    excerpt: row.excerpt ?? "",
+    content: "",
+    categoryId: staticIdFromSlug(row.category.slug),
+    image: row.image ?? "",
+    publishedAt: row.publishedAt.toISOString(),
+    updatedAt: row.publishedAt.toISOString(),
+    readTime: row.readTime,
+    featured: false,
+    breaking: false,
+    tags: [],
+    status: "PUBLISHED",
+    metaTitle: null,
+    metaDescription: null,
+    sourceName: null,
+    aiProcessed: true,
+    aiProcessingError: null,
+  };
+}
+
 export async function searchArticlesInDb(query: string, limit = 30): Promise<RawArticle[]> {
   if (!(await checkDatabaseConnection())) return [];
   const rows = await prisma.article.findMany({

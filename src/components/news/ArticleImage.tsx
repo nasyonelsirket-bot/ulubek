@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { generatePlaceholderCover } from "@/lib/ai-engine/placeholder-image";
 import { cn } from "@/lib/utils";
@@ -23,9 +24,13 @@ export default function ArticleImage({
   sizes,
   priority = false,
 }: ArticleImageProps) {
-  const imageSrc = src?.trim() || generatePlaceholderCover(alt, categorySlug);
+  const placeholder = generatePlaceholderCover(alt, categorySlug);
+  const initialSrc = src?.trim() || placeholder;
+  const [imageSrc, setImageSrc] = useState(initialSrc);
+
   const isDataUri = imageSrc.startsWith("data:");
   const isLocalMedia = imageSrc.startsWith("/api/media/");
+  const isRemote = imageSrc.startsWith("http://") || imageSrc.startsWith("https://");
 
   return (
     <Image
@@ -34,9 +39,12 @@ export default function ArticleImage({
       fill={fill}
       priority={priority}
       quality={90}
-      unoptimized={isDataUri || isLocalMedia}
+      unoptimized={isDataUri || isLocalMedia || isRemote}
       className={cn("object-cover transition-transform duration-300", className)}
       sizes={sizes ?? "(max-width: 768px) 100vw, 33vw"}
+      onError={() => {
+        if (imageSrc !== placeholder) setImageSrc(placeholder);
+      }}
     />
   );
 }

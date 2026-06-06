@@ -14,8 +14,11 @@ import {
   getPublishedArticlesFromDb,
   getArticleBySlugFromDb,
   searchArticlesInDb,
+  getRelatedArticlesFromDb,
+  getNextArticleFromDb,
 } from "@/lib/db/articles";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
+import { cache } from "react";
 
 export type { ArticleWithRelations } from "@/data/types";
 
@@ -84,7 +87,7 @@ export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
   return mapRawArticles(combined);
 }
 
-export async function getArticleBySlug(slug: string): Promise<ArticleWithRelations | null> {
+export const getArticleBySlug = cache(async (slug: string): Promise<ArticleWithRelations | null> => {
   const fromDb = await getArticleBySlugFromDb(slug);
   if (fromDb && publishedFilter(fromDb)) return mapRawArticle(fromDb);
 
@@ -92,7 +95,7 @@ export async function getArticleBySlug(slug: string): Promise<ArticleWithRelatio
   const raw = fromStore ?? getRawArticleBySlug(slug);
   if (!raw || !publishedFilter(raw)) return null;
   return mapRawArticle(raw);
-}
+});
 
 export async function getArticlesByCategorySlug(
   categorySlug: string,
@@ -113,6 +116,11 @@ export async function getArticlesByCategorySlug(
 }
 
 export async function getRelatedArticles(articleId: string, categoryId: string, limit = 4) {
+  const category = categories.find((c) => c.id === categoryId);
+  if (category && (await checkDatabaseConnection())) {
+    const related = await getRelatedArticlesFromDb(articleId, category.slug, limit);
+    if (related.length > 0) return mapRawArticles(related);
+  }
   return mapRawArticles(
     (await getMergedRaw())
       .filter((a) => a.categoryId === categoryId && a.id !== articleId)
@@ -135,6 +143,12 @@ export async function getNextArticle(
   currentId: string,
   categoryId: string
 ): Promise<ArticleWithRelations | null> {
+  const category = categories.find((c) => c.id === categoryId);
+  if (category && (await checkDatabaseConnection())) {
+    const next = await getNextArticleFromDb(currentId, category.slug);
+    if (next) return mapRawArticle(next);
+  }
+
   const sorted = [...(await getMergedRaw())].sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );

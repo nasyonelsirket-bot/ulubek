@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { cache } from "react";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
@@ -16,7 +17,7 @@ export function isDatabaseConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
-export async function checkDatabaseConnection(): Promise<boolean> {
+export const checkDatabaseConnection = cache(async (): Promise<boolean> => {
   if (!isDatabaseConfigured()) return false;
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -25,4 +26,4 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     console.error("[db] connection check failed:", err);
     return false;
   }
-}
+});

@@ -34,7 +34,7 @@ export async function runFullNewsSync(trigger: "cron" | "manual" = "manual") {
     force: trigger === "manual",
     trigger,
     fastTrack: true,
-    fullAiRewrite: true,
+    fullAiRewrite: false,
     maxSourcesPerRun: limits.maxSourcesPerRun,
     maxImportPerSource: limits.maxImportPerSource,
   });
@@ -70,7 +70,7 @@ export async function runPortalFreshStart() {
     respectInterval: false,
     trigger: "bootstrap",
     fastTrack: true,
-    fullAiRewrite: true,
+    fullAiRewrite: false,
     maxSourcesPerRun: limits.maxSourcesPerRun,
     maxImportPerSource: PORTAL_BOOTSTRAP_MAX_IMPORT,
     lookbackDays: PORTAL_BOOTSTRAP_LOOKBACK_DAYS,

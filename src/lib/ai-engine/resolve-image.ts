@@ -2,7 +2,6 @@ import { generateNewsImage } from "./image";
 import {
   createNewsCovers,
   createNewsCoversFromBufferLite,
-  createNewsCoversFromUrl,
   bufferFromSource,
 } from "./image-optimizer";
 import { fetchStockImage } from "./stock-image";
@@ -50,7 +49,16 @@ function buildCoverInput(input: ResolveImageInput): CoverComposeInput {
   };
 }
 
-/** Hızlı pipeline — görseli /api/media/ altına kaydeder (stok veya kaynak). */
+function isRemoteImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** Hızlı pipeline — önce kaynak görseli, yoksa stok/placeholder. */
 export async function resolveArticleImageQuick(
   input: ResolveImageInput
 ): Promise<ImageResolutionResult> {
@@ -58,23 +66,41 @@ export async function resolveArticleImageQuick(
   const coverInput = buildCoverInput(input);
 
   const sourceUrl = input.sourceImageUrl?.trim();
-  if (sourceUrl) {
+  if (sourceUrl && isRemoteImageUrl(sourceUrl)) {
     try {
-      const covers = await Promise.race([
-        createNewsCoversFromUrl(sourceUrl, fileId, coverInput),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      const buffer = await Promise.race([
+        bufferFromSource(sourceUrl),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
       ]);
-      if (covers) {
-        return {
-          url: covers.web,
-          urlSquare: covers.square,
-          urlStory: covers.story,
-          prompt: sourceUrl,
-          provider: "source",
-        };
+
+      if (buffer) {
+        const covers = await Promise.race([
+          createNewsCoversFromBufferLite(buffer, fileId, coverInput),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+        ]);
+        if (covers) {
+          return {
+            url: covers.web,
+            urlSquare: covers.square,
+            urlStory: covers.story,
+            prompt: sourceUrl,
+            provider: "source",
+          };
+        }
       }
+
+      // Netlify'da /api/media dosyaları kalıcı değil — kaynak URL'sini doğrudan kullan
+      return {
+        url: sourceUrl,
+        prompt: sourceUrl,
+        provider: "source",
+      };
     } catch {
-      /* stok/placeholder */
+      return {
+        url: sourceUrl,
+        prompt: sourceUrl,
+        provider: "source",
+      };
     }
   }
 
@@ -92,6 +118,9 @@ export async function resolveArticleImageQuick(
           provider: "stock",
         };
       }
+    }
+    if (isRemoteImageUrl(stockUrl)) {
+      return { url: stockUrl, prompt: `stock:${input.categorySlug}`, provider: "stock" };
     }
   }
 
@@ -142,6 +171,9 @@ export async function resolveArticleImage(input: ResolveImageInput): Promise<Ima
           provider: "source",
         };
       }
+    }
+    if (isRemoteImageUrl(sourceUrl)) {
+      return { url: sourceUrl, prompt: sourceUrl, provider: "source" };
     }
   }
 

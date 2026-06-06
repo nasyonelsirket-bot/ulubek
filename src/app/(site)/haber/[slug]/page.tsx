@@ -11,12 +11,13 @@ import { formatViewCount, estimateViewCount } from "@/lib/utils/view-count";
 import { buildArticleMetadata } from "@/lib/seo/metadata";
 import { buildNewsArticleSchema } from "@/lib/seo/news-article-schema";
 import { getSiteUrl } from "@/lib/seo/config";
-import { enrichArticleHtml } from "@/lib/ai/content-formatter";
 import JsonLd from "@/components/seo/JsonLd";
 import ShareButtons from "@/components/news/ShareButtons";
 import RelatedArticles from "@/components/news/RelatedArticles";
 import NextArticle from "@/components/news/NextArticle";
 import ArticleImage from "@/components/news/ArticleImage";
+
+export const revalidate = 60;
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>;
@@ -58,7 +59,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const seoInput = toSeoInput(article);
   const tags = seoInput.tags;
   const jsonLd = buildNewsArticleSchema(seoInput);
-  const articleHtml = enrichArticleHtml(article.content);
+  const articleHtml = article.content;
   const viewCount = estimateViewCount(article.id, article.publishedAt);
   const categorySlug = article.category.slug;
 

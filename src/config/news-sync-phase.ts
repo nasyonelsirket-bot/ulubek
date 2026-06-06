@@ -22,7 +22,7 @@ export function getPortalUrlsForPhase(): Set<string> {
 export function getPhaseLimits() {
   return {
     maxSourcesPerRun: 2,
-    maxImportPerSource: 10,
+    maxImportPerSource: 15,
     newsApiFeedsPerSync: 0,
   };
 }
