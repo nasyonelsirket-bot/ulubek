@@ -1,14 +1,9 @@
 import { runAutoNewsPipeline } from "@/lib/ai-engine/pipeline";
-import { runNewsApiPipeline } from "@/lib/newsapi/pipeline";
 import { countArticlesInDb } from "@/lib/db/articles";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
 import { getDynamicArticleCount } from "@/lib/ai-engine/store";
 import { ensureDefaultRssSources, ensurePortalLiveSources } from "@/lib/db/ensure-sources";
-import {
-  getNewsSyncPhase,
-  getPhaseLabel,
-  getPhaseLimits,
-} from "@/config/news-sync-phase";
+import { getNewsSyncPhase, getPhaseLabel, getPhaseLimits } from "@/config/news-sync-phase";
 
 async function getArticleCount(): Promise<number> {
   if (await checkDatabaseConnection()) return countArticlesInDb();
@@ -20,34 +15,28 @@ export async function runFullNewsSync(trigger: "cron" | "manual" = "manual") {
   const phase = getNewsSyncPhase();
   const limits = getPhaseLimits(phase);
 
-  const [rssSourcesRegistered, portalSourcesRegistered] = await Promise.all([
+  const [rssDeactivated, portalSourcesRegistered] = await Promise.all([
     ensureDefaultRssSources(),
     ensurePortalLiveSources(),
   ]);
 
-  const [newsApiSummary, rssSummary] = await Promise.all([
-    runNewsApiPipeline({
-      force: trigger === "manual",
-      trigger,
-      maxFeedsPerSync: limits.newsApiFeedsPerSync,
-    }),
-    runAutoNewsPipeline({
-      respectInterval: trigger === "cron",
-      force: trigger === "manual",
-      trigger,
-      fastTrack: true,
-      maxSourcesPerRun: limits.maxSourcesPerRun,
-      maxImportPerSource: limits.maxImportPerSource,
-    }),
-  ]);
+  const rssSummary = await runAutoNewsPipeline({
+    respectInterval: trigger === "cron",
+    force: trigger === "manual",
+    trigger,
+    fastTrack: true,
+    fullAiRewrite: true,
+    maxSourcesPerRun: limits.maxSourcesPerRun,
+    maxImportPerSource: limits.maxImportPerSource,
+  });
 
   return {
     phase,
     phaseLabel: getPhaseLabel(phase),
-    rssSourcesRegistered,
+    rssDeactivated,
     portalSourcesRegistered,
     databaseCount: await getArticleCount(),
-    newsApi: newsApiSummary,
+    newsApi: null,
     ...rssSummary,
   };
 }

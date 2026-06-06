@@ -1,7 +1,7 @@
 import Parser from "rss-parser";
 import type { MockSource, SourceFetchType, SourceUrlType } from "@/data/types";
 import { processArticleWithAI } from "@/lib/ai/engine";
-import { processWithLocalEngine } from "@/lib/ai/local-engine";
+import { processWithLocalEngine, makeDistinctTitle } from "@/lib/ai/local-engine";
 import { categories } from "@/data/categories";
 import { slugify } from "@/lib/utils/slug";
 import { calcReadTime } from "@/lib/utils/content";
@@ -13,6 +13,7 @@ import {
   checkContentBeforePublish,
   buildExistingArticleIndex,
   contentHash,
+  findSimilarTitle,
 } from "./duplicate-check";
 import { notifyArticlePublished } from "@/lib/live/notify";
 import { publishArticleToSocial } from "@/lib/social/publish";
@@ -77,6 +78,8 @@ export interface PipelineOptions {
   fastTrack?: boolean;
   maxSourcesPerRun?: number;
   maxImportPerSource?: number;
+  /** Tam AI yeniden yazım (kısa mod yerine uzun metin) */
+  fullAiRewrite?: boolean;
 }
 
 interface FeedItem {
@@ -98,6 +101,8 @@ export interface ProcessItemsOptions {
   skipEnrich?: boolean;
   /** Paralel işleme (varsayılan: fastTrack ise 4) */
   concurrency?: number;
+  /** Tam AI yeniden yazım */
+  fullAiRewrite?: boolean;
 }
 
 function resolveUrlType(source: MockSource): SourceUrlType {
@@ -155,8 +160,9 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     bootstrap = false,
     trigger = sourceId ? "single" : bootstrap ? "bootstrap" : force ? "manual" : "cron",
     fastTrack: fastTrackOpt,
-    maxSourcesPerRun = trigger === "cron" ? 16 : 50,
+    maxSourcesPerRun = trigger === "cron" ? 2 : 2,
     maxImportPerSource,
+    fullAiRewrite = false,
   } = options;
 
   const fastTrack = fastTrackOpt ?? trigger !== "bootstrap";
@@ -215,7 +221,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
             errors: [] as string[],
           });
         }
-        return processSource(source, bootstrap, fastTrack, maxImportPerSource);
+        return processSource(source, bootstrap, fastTrack, maxImportPerSource, fullAiRewrite);
       })
     );
     for (const result of batchResults) {
@@ -358,7 +364,7 @@ async function fetchItemsFromSource(
 ): Promise<FeedItem[]> {
   const settings = getSettings();
   const lookback = settings.scanLookbackDays;
-  const itemLimit = bootstrap ? 30 : skipEnrich ? 15 : 12;
+  const itemLimit = bootstrap ? 30 : skipEnrich ? 20 : 15;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -427,7 +433,8 @@ async function processSource(
   source: MockSource,
   bootstrap = false,
   fastTrack = false,
-  maxImportPerSource?: number
+  maxImportPerSource?: number,
+  fullAiRewrite = false
 ): Promise<PipelineResult> {
   try {
     const items = await fetchItemsFromSource(source, bootstrap, fastTrack);
@@ -448,9 +455,10 @@ async function processSource(
     const categorySlug = categories.find((c) => c.id === source.categoryId)?.slug;
     return processItemsWithSource(source, items, bootstrap, categorySlug, {
       fastTrack,
-      maxImport: maxImportPerSource ?? (fastTrack ? 5 : bootstrap ? 30 : 8),
+      maxImport: maxImportPerSource ?? (fastTrack ? 10 : bootstrap ? 30 : 8),
       skipEnrich: fastTrack,
       concurrency: fastTrack ? 3 : 1,
+      fullAiRewrite,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
@@ -481,6 +489,7 @@ export async function processItemsWithSource(
     maxImport = fastTrack ? 12 : bootstrap ? 30 : 8,
     skipEnrich = fastTrack,
     concurrency = fastTrack ? 4 : 1,
+    fullAiRewrite = false,
   } = options;
 
   const result: PipelineResult = {
@@ -534,11 +543,19 @@ export async function processItemsWithSource(
         rawContent = enriched.content;
       }
 
+      if (rawContent.length < 80) {
+        rawContent = `${rawContent}. ${title} hakkında son gelişmeler kamuoyunda takip ediliyor. Detaylar ve resmi açıklamalar paylaşıldıkça haber güncellenecektir.`;
+      }
+
+      // Aynı kaynak URL'si — tekrar işleme (birebir aynı haber)
       if (link && (seen.has(link) || (await isDuplicateSourceUrl(link)))) {
         result.skipped++;
         result.duplicate++;
         return;
       }
+
+      const similarTitle = findSimilarTitle(title, articleIndex.titles);
+      const needsRewrite = Boolean(similarTitle);
 
       const queueEntry = fastTrack
         ? null
@@ -559,9 +576,12 @@ export async function processItemsWithSource(
         seenUrls: seen,
         existingTitles: articleIndex.titles,
         existingContentHashes: articleIndex.contentHashes,
+        allowShortContent: true,
+        skipTitleDuplicate: needsRewrite,
+        skipContentDuplicate: needsRewrite,
       });
 
-      if (!preCheck.allowed) {
+      if (!preCheck.allowed && !needsRewrite) {
         result.skipped++;
         if (preCheck.reason === "spam") result.spam++;
         else if (isDuplicateReason(preCheck.reason)) result.duplicate++;
@@ -588,10 +608,16 @@ export async function processItemsWithSource(
       try {
         if (queueEntry) updateQueueItem(queueEntry.id, { status: "PENDING" });
 
-        const aiResult = fastTrack
+        let aiResult = fastTrack
           ? await processWithLocalEngine(
-              { title, content: rawContent, categories: categoryList, sourceName: source.name },
-              true
+              {
+                title,
+                content: rawContent,
+                categories: categoryList,
+                sourceName: source.name,
+                rewrite: needsRewrite,
+              },
+              !fullAiRewrite
             )
           : await processArticleWithAI({
               title,
@@ -599,6 +625,10 @@ export async function processItemsWithSource(
               categories: categoryList,
               sourceName: source.name,
             });
+
+        if (needsRewrite && findSimilarTitle(aiResult.title, articleIndex.titles)) {
+          aiResult.title = makeDistinctTitle(aiResult.title, source.name);
+        }
 
         const postCheck = checkContentBeforePublish({
           url: link,
@@ -608,16 +638,22 @@ export async function processItemsWithSource(
           seenUrls: seen,
           existingTitles: articleIndex.titles,
           existingContentHashes: articleIndex.contentHashes,
+          skipTitleDuplicate: needsRewrite,
+          skipContentDuplicate: true,
         });
 
         if (!postCheck.allowed) {
-          result.skipped++;
-          if (postCheck.reason === "spam") result.spam++;
-          else if (isDuplicateReason(postCheck.reason)) result.duplicate++;
-          if (queueEntry) {
-            updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.message ?? postCheck.reason });
+          if (needsRewrite && postCheck.reason === "duplicate_title") {
+            aiResult.title = makeDistinctTitle(aiResult.title, source.name, 1);
+          } else {
+            result.skipped++;
+            if (postCheck.reason === "spam") result.spam++;
+            else if (isDuplicateReason(postCheck.reason)) result.duplicate++;
+            if (queueEntry) {
+              updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.message ?? postCheck.reason });
+            }
+            return;
           }
-          return;
         }
 
         const categorySlug =

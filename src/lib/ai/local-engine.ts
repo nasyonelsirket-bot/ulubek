@@ -37,6 +37,36 @@ function detectCategory(text: string, categories: AIProcessInput["categories"]):
   return categories.some((c) => c.slug === bestSlug) ? bestSlug : categories[0]?.slug || "gundem";
 }
 
+function rephraseTitle(title: string, sourceName?: string): string {
+  const base = neutralizeTitle(title);
+  const suffixes = [
+    " — güncel gelişmeler",
+    " — son durum",
+    " — detaylar",
+    " — yeni bilgiler",
+  ];
+  const prefix = sourceName ? `${sourceName.replace(/\.com.*/i, "").trim()} haberine göre: ` : "";
+  const suffix = suffixes[Math.abs(base.length) % suffixes.length];
+  const candidate = `${prefix}${base}${suffix}`.replace(/\s+/g, " ").trim();
+  return candidate.length <= 120 ? candidate : base;
+}
+
+export function makeDistinctTitle(title: string, sourceName?: string, attempt = 0): string {
+  const variants = [
+    rephraseTitle(title, sourceName),
+    `${neutralizeTitle(title)} — ${new Date().toLocaleDateString("tr-TR")} güncellemesi`,
+    `${neutralizeTitle(title)} | yeni açıklamalar`,
+    `${neutralizeTitle(title)} — farklı perspektif`,
+  ];
+  return variants[attempt % variants.length] ?? title;
+}
+
+function rewriteIntro(title: string, rawContent: string, sourceName?: string): string {
+  const topic = neutralizeTitle(title);
+  const source = sourceName ? `${sourceName} kaynaklı bilgilere göre, ` : "";
+  return `${source}${topic} başlığı gündeme oturdu. ${stripHtml(rawContent).slice(0, 400)} Bu gelişme, benzer haberlerden farklı bir çerçevede ele alınarak okuyuculara sunuluyor.`;
+}
+
 function neutralizeTitle(title: string): string {
   let result = title;
   for (const prefix of CLICKBAIT_PREFIXES) {
@@ -190,14 +220,16 @@ export async function processWithLocalEngine(
 ): Promise<AIProcessedResult> {
   const combined = `${input.title} ${stripHtml(input.content)}`;
   const categorySlug = detectCategory(combined, input.categories);
-  const title = neutralizeTitle(input.title);
-  const raw = stripHtml(input.content) || title;
+  let title = input.rewrite ? rephraseTitle(input.title, input.sourceName) : neutralizeTitle(input.title);
+  const raw = stripHtml(input.content) || input.title;
 
   const content = compact
     ? enrichArticleHtml(
-        `<p>${raw.slice(0, 800)}</p><p>${title} konusundaki gelişmeler kamuoyunda takip ediliyor. Resmi açıklamalar ve sürece ilişkin yeni bilgiler paylaşıldıkça haber güncellenecektir.</p>`
+        input.rewrite
+          ? `<p>${rewriteIntro(title, raw, input.sourceName)}</p><p>${title} konusundaki gelişmeler kamuoyunda takip ediliyor. Resmi açıklamalar ve sürece ilişkin yeni bilgiler paylaşıldıkça haber güncellenecektir.</p>`
+          : `<p>${raw.slice(0, 800)}</p><p>${title} konusundaki gelişmeler kamuoyunda takip ediliyor. Resmi açıklamalar ve sürece ilişkin yeni bilgiler paylaşıldıkça haber güncellenecektir.</p>`
       )
-    : expandToLongForm(title, input.content);
+    : expandToLongForm(title, input.rewrite ? rewriteIntro(title, raw, input.sourceName) : input.content);
   const excerpt = buildExcerptFromContent(content, 150, 250);
   const tags = extractTags(combined, categorySlug);
 

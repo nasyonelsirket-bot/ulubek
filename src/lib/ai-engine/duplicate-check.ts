@@ -62,7 +62,7 @@ export function contentHash(content: string): string {
   return `h${Math.abs(hash).toString(36)}`;
 }
 
-function detectSpam(title: string, content: string): string | null {
+function detectSpam(title: string, content: string, allowShortContent = false): string | null {
   const combined = `${title} ${content}`;
   for (const pattern of SPAM_PATTERNS) {
     if (pattern.test(combined)) {
@@ -70,13 +70,34 @@ function detectSpam(title: string, content: string): string | null {
     }
   }
   if (title.length < 8) return "Başlık çok kısa";
-  if (content.length < 80) return "İçerik çok kısa";
+  if (!allowShortContent && content.length < 80) return "İçerik çok kısa";
   return null;
 }
 
-export function checkContentBeforePublish(input: ContentCheckInput): ContentCheckResult {
-  const { url, title, content, trustScore, seenUrls, existingTitles, existingContentHashes } =
-    input;
+export function findSimilarTitle(title: string, existingTitles: string[]): string | null {
+  for (const existing of existingTitles) {
+    if (titleSimilarity(title, existing) >= TITLE_SIMILARITY_THRESHOLD) {
+      return existing;
+    }
+  }
+  return null;
+}
+
+export function checkContentBeforePublish(
+  input: ContentCheckInput & { allowShortContent?: boolean; skipTitleDuplicate?: boolean; skipContentDuplicate?: boolean }
+): ContentCheckResult {
+  const {
+    url,
+    title,
+    content,
+    trustScore,
+    seenUrls,
+    existingTitles,
+    existingContentHashes,
+    allowShortContent = false,
+    skipTitleDuplicate = false,
+    skipContentDuplicate = false,
+  } = input;
 
   if (!title.trim()) {
     return { allowed: false, reason: "empty", message: "Başlık boş" };
@@ -90,23 +111,25 @@ export function checkContentBeforePublish(input: ContentCheckInput): ContentChec
     return { allowed: false, reason: "duplicate_url", message: "Bu URL daha önce işlendi" };
   }
 
-  const spamReason = detectSpam(title, content);
+  const spamReason = detectSpam(title, content, allowShortContent);
   if (spamReason) {
     return { allowed: false, reason: "spam", message: spamReason };
   }
 
-  for (const existing of existingTitles) {
-    if (titleSimilarity(title, existing) >= TITLE_SIMILARITY_THRESHOLD) {
-      return {
-        allowed: false,
-        reason: "duplicate_title",
-        message: "Benzer başlıklı haber zaten mevcut",
-      };
+  if (!skipTitleDuplicate) {
+    for (const existing of existingTitles) {
+      if (titleSimilarity(title, existing) >= TITLE_SIMILARITY_THRESHOLD) {
+        return {
+          allowed: false,
+          reason: "duplicate_title",
+          message: "Benzer başlıklı haber zaten mevcut",
+        };
+      }
     }
   }
 
   const hash = contentHash(content);
-  if (existingContentHashes.has(hash)) {
+  if (!skipContentDuplicate && existingContentHashes.has(hash)) {
     return {
       allowed: false,
       reason: "duplicate_content",

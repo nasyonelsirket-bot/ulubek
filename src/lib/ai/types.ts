@@ -20,4 +20,6 @@ export interface AIProcessInput {
   excerpt?: string;
   sourceName?: string;
   categories: Array<{ slug: string; name: string; description?: string | null }>;
+  /** Benzer haber varsa farklı metin üret */
+  rewrite?: boolean;
 }
