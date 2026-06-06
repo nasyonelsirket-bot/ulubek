@@ -341,17 +341,29 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
     }
   }
 
-  async function fetchAll() {
+  async function fetchAll(freshStart = false) {
+    if (freshStart) {
+      const ok = window.confirm(
+        "Tüm mevcut haberler silinecek ve Haberler.com + SonDakika.com'dan geçmiş + güncel haberler yeniden yüklenecek. Devam edilsin mi?"
+      );
+      if (!ok) return;
+    }
+
     setFetchingAll(true);
     setMessage("");
 
     try {
-      const res = await fetch("/api/admin/sources/fetch-all", { method: "POST" });
+      const res = await fetch("/api/admin/sources/fetch-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ freshStart }),
+      });
       const data = await readApiJson<{
         success?: boolean;
         error?: string;
         started?: boolean;
         async?: boolean;
+        freshStart?: boolean;
         message?: string;
         phase?: number;
         phaseLabel?: string;
@@ -428,9 +440,17 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
           <Plus className="h-4 w-4" />
           Kaynak Ekle
         </Button>
-        <Button variant="outline" onClick={fetchAll} disabled={fetchingAll}>
+        <Button variant="outline" onClick={() => fetchAll(false)} disabled={fetchingAll}>
           <RefreshCw className={`h-4 w-4 ${fetchingAll ? "animate-spin" : ""}`} />
           Tümünü Tara (AI Motor)
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => fetchAll(true)}
+          disabled={fetchingAll}
+        >
+          <RefreshCw className={`h-4 w-4 ${fetchingAll ? "animate-spin" : ""}`} />
+          Sıfırla ve Yeniden Doldur
         </Button>
       </div>
 

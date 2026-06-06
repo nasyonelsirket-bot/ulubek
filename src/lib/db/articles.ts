@@ -212,6 +212,14 @@ export async function countArticlesInDb(): Promise<number> {
   return prisma.article.count();
 }
 
+/** Tüm haberleri ve etiket bağlantılarını siler (fresh-start). */
+export async function deleteAllArticlesFromDb(): Promise<number> {
+  if (!(await checkDatabaseConnection())) return 0;
+  await prisma.articleTag.deleteMany({});
+  const result = await prisma.article.deleteMany({});
+  return result.count;
+}
+
 export async function getArticleBySlugFromDb(slug: string): Promise<RawArticle | null> {
   if (!(await checkDatabaseConnection())) return null;
   const row = await prisma.article.findUnique({

@@ -35,7 +35,9 @@ import {
   getDynamicArticleCount,
 } from "./store";
 import { appendPipelineLog } from "./pipeline-log";
-import { scrapeWebsite, scrapeArticlePage, scrapePortalRssPage, scrapeArticleMeta, isRssUrl, isPortalRssUrl, type ScrapedArticle } from "./scraper";
+import { scrapeWebsite, scrapeArticlePage, scrapePortalRssPage, scrapePortalArticleLinks, scrapeArticleMeta, isRssUrl, isPortalRssUrl, type ScrapedArticle } from "./scraper";
+import { PORTAL_ARCHIVE_PAGES } from "@/config/portal-archive";
+import { PORTAL_LIVE_FEEDS } from "@/data/portal-live-feeds";
 import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
 import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
@@ -79,6 +81,8 @@ export interface PipelineOptions {
   maxImportPerSource?: number;
   /** Tam AI yeniden yazım (kısa mod yerine uzun metin) */
   fullAiRewrite?: boolean;
+  /** Tarama lookback günü (varsayılan: ayarlardan) */
+  lookbackDays?: number;
 }
 
 interface FeedItem {
@@ -162,6 +166,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     maxSourcesPerRun = trigger === "cron" ? 2 : 2,
     maxImportPerSource,
     fullAiRewrite = false,
+    lookbackDays,
   } = options;
 
   const fastTrack = fastTrackOpt ?? trigger !== "bootstrap";
@@ -220,7 +225,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
             errors: [] as string[],
           });
         }
-        return processSource(source, bootstrap, fastTrack, maxImportPerSource, fullAiRewrite);
+        return processSource(source, bootstrap, fastTrack, maxImportPerSource, fullAiRewrite, lookbackDays);
       })
     );
     for (const result of batchResults) {
@@ -356,14 +361,70 @@ async function enrichPortalItems(links: ScrapedArticle[], skipEnrich: boolean): 
   return items;
 }
 
+function dedupeScrapedLinks(links: ScrapedArticle[]): ScrapedArticle[] {
+  const seen = new Set<string>();
+  const out: ScrapedArticle[] = [];
+  for (const link of links) {
+    if (seen.has(link.url)) continue;
+    seen.add(link.url);
+    out.push(link);
+  }
+  return out;
+}
+
+function resolvePortalKey(source: MockSource): "haberler" | "sondakika" | null {
+  const feed = PORTAL_LIVE_FEEDS.find((f) => f.url === source.url);
+  if (feed?.portalKey) return feed.portalKey;
+  if (source.url.includes("haberler")) return "haberler";
+  if (source.url.includes("sondakika")) return "sondakika";
+  return null;
+}
+
+async function fetchPortalItems(
+  source: MockSource,
+  bootstrap: boolean,
+  skipEnrich: boolean,
+  lookback: number,
+  itemLimit: number
+): Promise<FeedItem[]> {
+  const portalKey = resolvePortalKey(source);
+  const rssLinks = await scrapePortalRssPage(source.url, bootstrap ? 15 : itemLimit);
+
+  let archiveLinks: ScrapedArticle[] = [];
+  if (bootstrap && portalKey) {
+    const pages = PORTAL_ARCHIVE_PAGES[portalKey];
+    const batches = await Promise.all(
+      pages.map((page) => scrapePortalArticleLinks(page, 12).catch(() => [] as ScrapedArticle[]))
+    );
+    archiveLinks = batches.flat();
+  }
+
+  const merged = dedupeScrapedLinks([...archiveLinks, ...rssLinks]);
+  const items = await enrichPortalItems(merged, skipEnrich);
+  const filtered = items.filter(
+    (item) => !item.publishedAt || isWithinLookbackDays(item.publishedAt, lookback)
+  );
+
+  if (bootstrap) {
+    filtered.sort((a, b) => {
+      const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : Date.now();
+      const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : Date.now();
+      return ta - tb;
+    });
+  }
+
+  return filtered;
+}
+
 async function fetchItemsFromSource(
   source: MockSource,
   bootstrap: boolean,
-  skipEnrich = false
+  skipEnrich = false,
+  lookbackDays?: number
 ): Promise<FeedItem[]> {
   const settings = getSettings();
-  const lookback = settings.scanLookbackDays;
-  const itemLimit = bootstrap ? 30 : skipEnrich ? 20 : 15;
+  const lookback = lookbackDays ?? settings.scanLookbackDays;
+  const itemLimit = bootstrap ? 40 : skipEnrich ? 20 : 15;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -374,11 +435,7 @@ async function fetchItemsFromSource(
   }
 
   if (isPortalRssUrl(source.url)) {
-    const links = await scrapePortalRssPage(source.url, itemLimit);
-    const items = await enrichPortalItems(links, skipEnrich);
-    return items.filter(
-      (item) => !item.publishedAt || isWithinLookbackDays(item.publishedAt, lookback)
-    );
+    return fetchPortalItems(source, bootstrap, skipEnrich, lookback, itemLimit);
   }
 
   if (urlType === "RSS" || resolveFetchType(source) === "RSS") {
@@ -433,10 +490,11 @@ async function processSource(
   bootstrap = false,
   fastTrack = false,
   maxImportPerSource?: number,
-  fullAiRewrite = false
+  fullAiRewrite = false,
+  lookbackDays?: number
 ): Promise<PipelineResult> {
   try {
-    const items = await fetchItemsFromSource(source, bootstrap, fastTrack);
+    const items = await fetchItemsFromSource(source, bootstrap, fastTrack, lookbackDays);
     if (items.length === 0) {
       const empty: PipelineResult = {
         sourceId: source.id,

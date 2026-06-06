@@ -82,6 +82,16 @@ export async function ensurePortalLiveSources(): Promise<number> {
   return upserted;
 }
 
+/** Portal kaynaklarının tarama sayaçlarını sıfırlar. */
+export async function resetPortalSourceFetchState(): Promise<void> {
+  if (!(await checkDatabaseConnection())) return;
+  const urls = PORTAL_LIVE_FEEDS.map((f) => f.url);
+  await prisma.source.updateMany({
+    where: { url: { in: urls } },
+    data: { lastFetchedAt: null, lastFetchError: null, articlesFetched: 0 },
+  });
+}
+
 /** JSON fallback — yalnızca portal kaynakları */
 export function buildMockSourcesFromFeeds() {
   const portalFeeds = portalFeedsForCurrentPhase();

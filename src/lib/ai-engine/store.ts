@@ -60,6 +60,11 @@ export function markSeen(url: string) {
   writeRuntimeJson("seen.json", Array.from(seen).slice(-5000));
 }
 
+export function clearPipelineRuntimeState() {
+  writeRuntimeJson("seen.json", []);
+  writeRuntimeJson("articles.json", []);
+}
+
 export function updateSourceFetchTime(id: string, error?: string | null, imported = 0) {
   const sources = getAllSourcesFromStore();
   const source = sources.find((s) => s.id === id);

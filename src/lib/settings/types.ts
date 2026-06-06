@@ -41,7 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   openaiModel: "gpt-4o-mini",
   geminiModel: "gemini-2.0-flash",
   scanIntervalMin: 1,
-  scanLookbackDays: 10,
+  scanLookbackDays: 14,
   minWordCount: 700,
   targetWordCount: 1500,
   useSourceImage: true,

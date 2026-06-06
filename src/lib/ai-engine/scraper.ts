@@ -87,6 +87,50 @@ export async function scrapeArticleMeta(
   };
 }
 
+/** Haberler / SonDakika kategori sayfalarından haber linkleri. */
+export async function scrapePortalArticleLinks(pageUrl: string, limit = 20): Promise<ScrapedArticle[]> {
+  const res = await fetch(pageUrl, {
+    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!res.ok) throw new Error(`Liste sayfası alınamadı: HTTP ${res.status}`);
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const origin = new URL(pageUrl).origin;
+  const items: ScrapedArticle[] = [];
+  const seen = new Set<string>();
+
+  $("a[href*='-haberi/']").each((_, el) => {
+    if (items.length >= limit) return false;
+    const href = $(el).attr("href");
+    let title = $(el).text().replace(/\s+/g, " ").trim();
+    if (!href) return;
+
+    let url = href;
+    try {
+      url = new URL(href, origin).href;
+    } catch {
+      return;
+    }
+
+    if (!url.startsWith(origin)) return;
+    if (seen.has(url)) return;
+    if (/(reklam|iletisim|giris|login|#)/i.test(url)) return;
+
+    if (title.length < 15) {
+      title = $(el).attr("title")?.trim() || title;
+    }
+    if (title.length < 15) return;
+
+    seen.add(url);
+    items.push({ title, url, content: title });
+  });
+
+  return items;
+}
+
 export async function scrapeWebsite(baseUrl: string, limit = 8): Promise<ScrapedArticle[]> {
   const res = await fetch(baseUrl, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },

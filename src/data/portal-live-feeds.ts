@@ -5,6 +5,7 @@ export interface PortalLiveFeed {
   categorySlug: string;
   trustScore: number;
   fetchIntervalMin?: number;
+  portalKey?: "haberler" | "sondakika";
 }
 
 export const PORTAL_LIVE_FEEDS: PortalLiveFeed[] = [
@@ -14,6 +15,7 @@ export const PORTAL_LIVE_FEEDS: PortalLiveFeed[] = [
     categorySlug: "gundem",
     trustScore: 0.88,
     fetchIntervalMin: 1,
+    portalKey: "haberler",
   },
   {
     name: "SonDakika.com — Son Dakika",
@@ -21,5 +23,6 @@ export const PORTAL_LIVE_FEEDS: PortalLiveFeed[] = [
     categorySlug: "gundem",
     trustScore: 0.87,
     fetchIntervalMin: 1,
+    portalKey: "sondakika",
   },
 ];
