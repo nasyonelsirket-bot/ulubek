@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       phase,
       phaseLabel,
       message: freshStart
-        ? "Eski haberler siliniyor, geçmiş + güncel haberler arka planda yükleniyor (5–10 dk)."
+        ? "Eski haberler siliniyor, son 200 haber arka planda yükleniyor (10–20 dk)."
         : `${phaseLabel}: tarama arka planda başladı. 1–2 dakika içinde yeni haberler görünecek.`,
     });
   } catch (err) {

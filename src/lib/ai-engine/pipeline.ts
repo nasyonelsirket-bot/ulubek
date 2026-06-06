@@ -27,6 +27,11 @@ import {
 import { getActiveSourcesForPipeline } from "@/lib/db/pipeline-sources";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
 import {
+  PORTAL_BOOTSTRAP_LINK_LIMIT,
+  PORTAL_BOOTSTRAP_MAX_IMPORT,
+  PORTAL_ARCHIVE_LINKS_PER_PAGE,
+} from "@/config/portal-archive";
+import {
   getSeenUrls,
   markSeen,
   saveArticle,
@@ -395,13 +400,14 @@ async function fetchPortalItems(
   itemLimit: number
 ): Promise<FeedItem[]> {
   const portalKey = resolvePortalKey(source);
-  const rssLinks = await scrapePortalRssPage(source.url, bootstrap ? 15 : itemLimit);
+  const rssLinks = await scrapePortalRssPage(source.url, itemLimit);
 
   let archiveLinks: ScrapedArticle[] = [];
   if (bootstrap && portalKey) {
     const pages = PORTAL_ARCHIVE_PAGES[portalKey];
+    const perPage = bootstrap ? PORTAL_ARCHIVE_LINKS_PER_PAGE : 12;
     const batches = await Promise.all(
-      pages.map((page) => scrapePortalArticleLinks(page, 12).catch(() => [] as ScrapedArticle[]))
+      pages.map((page) => scrapePortalArticleLinks(page, perPage).catch(() => [] as ScrapedArticle[]))
     );
     archiveLinks = batches.flat();
   }
@@ -431,7 +437,7 @@ async function fetchItemsFromSource(
 ): Promise<FeedItem[]> {
   const settings = getSettings();
   const lookback = lookbackDays ?? settings.scanLookbackDays;
-  const itemLimit = bootstrap ? 40 : skipEnrich ? 20 : 15;
+  const itemLimit = bootstrap ? PORTAL_BOOTSTRAP_LINK_LIMIT : skipEnrich ? 20 : 15;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -519,7 +525,7 @@ async function processSource(
     const categorySlug = categories.find((c) => c.id === source.categoryId)?.slug;
     return processItemsWithSource(source, items, bootstrap, categorySlug, {
       fastTrack,
-      maxImport: maxImportPerSource ?? (fastTrack ? 10 : bootstrap ? 30 : 8),
+      maxImport: maxImportPerSource ?? (fastTrack ? 10 : bootstrap ? PORTAL_BOOTSTRAP_MAX_IMPORT : 8),
       skipEnrich: fastTrack,
       concurrency: fastTrack ? 3 : 1,
       fullAiRewrite,
@@ -550,7 +556,7 @@ export async function processItemsWithSource(
 ): Promise<PipelineResult> {
   const {
     fastTrack = false,
-    maxImport = fastTrack ? 12 : bootstrap ? 30 : 8,
+    maxImport = fastTrack ? 12 : bootstrap ? PORTAL_BOOTSTRAP_MAX_IMPORT : 8,
     skipEnrich = fastTrack,
     concurrency = fastTrack ? 4 : 1,
     fullAiRewrite = false,

@@ -1,4 +1,4 @@
-import { runAutoNewsPipeline } from "@/lib/ai-engine/pipeline";
+import { runAutoNewsPipeline, type PipelineSummary } from "@/lib/ai-engine/pipeline";
 import { countArticlesInDb, deleteAllArticlesFromDb } from "@/lib/db/articles";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
 import { clearPipelineRuntimeState, getDynamicArticleCount } from "@/lib/ai-engine/store";
@@ -11,6 +11,7 @@ import { getNewsSyncPhase, getPhaseLabel, getPhaseLimits } from "@/config/news-s
 import {
   PORTAL_BOOTSTRAP_LOOKBACK_DAYS,
   PORTAL_BOOTSTRAP_MAX_IMPORT,
+  PORTAL_BOOTSTRAP_TOTAL_TARGET,
 } from "@/config/portal-archive";
 import { revalidatePath } from "next/cache";
 
@@ -64,17 +65,7 @@ export async function runPortalFreshStart() {
     resetPortalSourceFetchState(),
   ]);
 
-  const summary = await runAutoNewsPipeline({
-    force: true,
-    bootstrap: true,
-    respectInterval: false,
-    trigger: "bootstrap",
-    fastTrack: true,
-    fullAiRewrite: false,
-    maxSourcesPerRun: limits.maxSourcesPerRun,
-    maxImportPerSource: PORTAL_BOOTSTRAP_MAX_IMPORT,
-    lookbackDays: PORTAL_BOOTSTRAP_LOOKBACK_DAYS,
-  });
+  const summary = await runPortalBootstrapFill();
 
   revalidatePath("/");
   revalidatePath("/kategori/gundem");
@@ -87,10 +78,57 @@ export async function runPortalFreshStart() {
     rssDeactivated,
     portalSourcesRegistered,
     lookbackDays: PORTAL_BOOTSTRAP_LOOKBACK_DAYS,
+    bootstrapTarget: PORTAL_BOOTSTRAP_TOTAL_TARGET,
     databaseCount: await getArticleCount(),
     newsApi: null,
     ...summary,
   };
+}
+
+/** Kaynaklardan son N haberi tur tur doldurur (timeout riskine karşı). */
+async function runPortalBootstrapFill(): Promise<PipelineSummary> {
+  const limits = getPhaseLimits();
+  let lastSummary: PipelineSummary = {
+    processed: 0,
+    imported: 0,
+    skipped: 0,
+    found: 0,
+    sources: [],
+    timestamp: new Date().toISOString(),
+    bootstrap: true,
+  };
+
+  let rounds = 0;
+  const maxRounds = 5;
+
+  while ((await getArticleCount()) < PORTAL_BOOTSTRAP_TOTAL_TARGET && rounds < maxRounds) {
+    const round = await runAutoNewsPipeline({
+      force: true,
+      bootstrap: true,
+      respectInterval: false,
+      trigger: "bootstrap",
+      fastTrack: true,
+      fullAiRewrite: false,
+      maxSourcesPerRun: limits.maxSourcesPerRun,
+      maxImportPerSource: PORTAL_BOOTSTRAP_MAX_IMPORT,
+      lookbackDays: PORTAL_BOOTSTRAP_LOOKBACK_DAYS,
+    });
+
+    lastSummary = {
+      processed: lastSummary.processed + round.processed,
+      imported: lastSummary.imported + round.imported,
+      skipped: lastSummary.skipped + round.skipped,
+      found: lastSummary.found + round.found,
+      sources: [...lastSummary.sources, ...round.sources],
+      timestamp: round.timestamp,
+      bootstrap: true,
+    };
+
+    rounds++;
+    if (round.imported === 0) break;
+  }
+
+  return lastSummary;
 }
 
 /** Netlify after() yedek — cron endpoint'ini tetikler. */
