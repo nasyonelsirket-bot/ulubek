@@ -17,7 +17,7 @@ export async function POST() {
     if (unauthorized) return unauthorized;
 
     const phase = getNewsSyncPhase();
-    const phaseLabel = getPhaseLabel(phase);
+    const phaseLabel = getPhaseLabel();
 
     // Anında JSON dön — hiç DB/pipeline işi bekleme (Netlify timeout önlemi)
     after(async () => {

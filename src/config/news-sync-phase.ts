@@ -11,15 +11,15 @@ export const ACTIVE_PORTAL_URLS = new Set([
 ]);
 
 /** RSS kaynakları devre dışı — boş küme döner. */
-export function getFeedUrlsForPhase(_phase?: NewsSyncPhase): Set<string> {
+export function getFeedUrlsForPhase(): Set<string> {
   return new Set();
 }
 
-export function getPortalUrlsForPhase(_phase?: NewsSyncPhase): Set<string> {
+export function getPortalUrlsForPhase(): Set<string> {
   return ACTIVE_PORTAL_URLS;
 }
 
-export function getPhaseLimits(_phase?: NewsSyncPhase) {
+export function getPhaseLimits() {
   return {
     maxSourcesPerRun: 2,
     maxImportPerSource: 10,
@@ -27,6 +27,6 @@ export function getPhaseLimits(_phase?: NewsSyncPhase) {
   };
 }
 
-export function getPhaseLabel(_phase?: NewsSyncPhase): string {
+export function getPhaseLabel(): string {
   return "Haberler.com + SonDakika.com";
 }

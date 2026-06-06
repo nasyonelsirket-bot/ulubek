@@ -13,7 +13,7 @@ async function getArticleCount(): Promise<number> {
 /** Faz limitleriyle hafif senkronizasyon (cron + arka plan). */
 export async function runFullNewsSync(trigger: "cron" | "manual" = "manual") {
   const phase = getNewsSyncPhase();
-  const limits = getPhaseLimits(phase);
+  const limits = getPhaseLimits();
 
   const [rssDeactivated, portalSourcesRegistered] = await Promise.all([
     ensureDefaultRssSources(),
@@ -32,7 +32,7 @@ export async function runFullNewsSync(trigger: "cron" | "manual" = "manual") {
 
   return {
     phase,
-    phaseLabel: getPhaseLabel(phase),
+    phaseLabel: getPhaseLabel(),
     rssDeactivated,
     portalSourcesRegistered,
     databaseCount: await getArticleCount(),

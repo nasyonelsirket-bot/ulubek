@@ -220,7 +220,7 @@ export async function processWithLocalEngine(
 ): Promise<AIProcessedResult> {
   const combined = `${input.title} ${stripHtml(input.content)}`;
   const categorySlug = detectCategory(combined, input.categories);
-  let title = input.rewrite ? rephraseTitle(input.title, input.sourceName) : neutralizeTitle(input.title);
+  const title = input.rewrite ? rephraseTitle(input.title, input.sourceName) : neutralizeTitle(input.title);
   const raw = stripHtml(input.content) || input.title;
 
   const content = compact

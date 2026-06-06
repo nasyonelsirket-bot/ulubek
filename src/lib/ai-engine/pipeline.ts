@@ -27,7 +27,6 @@ import {
 import { getActiveSourcesForPipeline } from "@/lib/db/pipeline-sources";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
 import {
-  getAllSourcesFromStore,
   getSeenUrls,
   markSeen,
   saveArticle,
@@ -608,7 +607,7 @@ export async function processItemsWithSource(
       try {
         if (queueEntry) updateQueueItem(queueEntry.id, { status: "PENDING" });
 
-        let aiResult = fastTrack
+        const aiResult = fastTrack
           ? await processWithLocalEngine(
               {
                 title,
@@ -626,13 +625,14 @@ export async function processItemsWithSource(
               sourceName: source.name,
             });
 
-        if (needsRewrite && findSimilarTitle(aiResult.title, articleIndex.titles)) {
-          aiResult.title = makeDistinctTitle(aiResult.title, source.name);
+        let publishTitle = aiResult.title;
+        if (needsRewrite && findSimilarTitle(publishTitle, articleIndex.titles)) {
+          publishTitle = makeDistinctTitle(publishTitle, source.name);
         }
 
         const postCheck = checkContentBeforePublish({
           url: link,
-          title: aiResult.title,
+          title: publishTitle,
           content: aiResult.content,
           trustScore: source.trustScore,
           seenUrls: seen,
@@ -644,7 +644,7 @@ export async function processItemsWithSource(
 
         if (!postCheck.allowed) {
           if (needsRewrite && postCheck.reason === "duplicate_title") {
-            aiResult.title = makeDistinctTitle(aiResult.title, source.name, 1);
+            publishTitle = makeDistinctTitle(publishTitle, source.name, 1);
           } else {
             result.skipped++;
             if (postCheck.reason === "spam") result.spam++;
@@ -663,14 +663,14 @@ export async function processItemsWithSource(
         const articleId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const imageResult = fastTrack
           ? await resolveArticleImageQuick({
-              title: aiResult.title,
+              title: publishTitle,
               categorySlug,
               sourceImageUrl: item.sourceImage,
               articleId,
               breaking: aiResult.breaking,
             })
           : await resolveArticleImage({
-              title: aiResult.title,
+              title: publishTitle,
               categorySlug,
               sourceImageUrl: item.sourceImage,
               articleId,
@@ -683,8 +683,8 @@ export async function processItemsWithSource(
 
         const article: RawArticle = {
           id: articleId,
-          title: aiResult.title,
-          slug: uniqueSlug(aiResult.title),
+          title: publishTitle,
+          slug: uniqueSlug(publishTitle),
           excerpt: aiResult.excerpt,
           content: aiResult.content,
           categoryId: getCategoryIdBySlug(categorySlug),
@@ -742,7 +742,7 @@ export async function processItemsWithSource(
           seen.add(link);
           markSeen(link);
         }
-        articleIndex.titles.push(aiResult.title);
+        articleIndex.titles.push(publishTitle);
         articleIndex.contentHashes.add(contentHash(aiResult.content));
         if (queueEntry) {
           updateQueueItem(queueEntry.id, {

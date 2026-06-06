@@ -20,7 +20,6 @@ export default async function AppleIcon() {
           padding: 16,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={getLogoDataUri(logoBase64)}
           alt="Ulubek Medya"

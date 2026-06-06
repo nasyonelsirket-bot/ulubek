@@ -22,7 +22,6 @@ export default async function OpenGraphImage() {
           background: "#f3f4f6",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={getLogoDataUri(logoBase64)}
           alt="Ulubek Medya"

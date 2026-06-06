@@ -1,12 +1,11 @@
 import { SourceType } from "@prisma/client";
 import { PORTAL_LIVE_FEEDS } from "@/data/portal-live-feeds";
 import { categories as staticCategories } from "@/data/categories";
-import { getPortalUrlsForPhase, getNewsSyncPhase } from "@/config/news-sync-phase";
+import { getPortalUrlsForPhase } from "@/config/news-sync-phase";
 import { checkDatabaseConnection, prisma } from "./prisma";
 
 function portalFeedsForCurrentPhase() {
-  const phase = getNewsSyncPhase();
-  const allowed = getPortalUrlsForPhase(phase);
+  const allowed = getPortalUrlsForPhase();
   return PORTAL_LIVE_FEEDS.filter((f) => allowed.has(f.url));
 }
 
