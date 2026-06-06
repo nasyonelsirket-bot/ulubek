@@ -42,10 +42,10 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   }));
 
   return (
-    <div className="safe-bottom mx-auto max-w-6xl px-4 py-6 md:px-6">
-      <div className="mb-8 flex items-center gap-4">
+    <div className="safe-bottom page-shell py-5 md:py-6">
+      <div className="mb-6 flex items-center gap-3 md:mb-8 md:gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-extrabold text-white shadow-lg"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-extrabold text-white shadow-lg md:h-14 md:w-14 md:text-xl"
           style={{ backgroundColor: category.color }}
         >
           {category.name[0]}
@@ -64,7 +64,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="lg:col-span-9">
           {articles.length > 0 ? (
-            <ArticleGrid articles={mapped} columns={3} />
+            <ArticleGrid articles={mapped} columns={2} />
           ) : (
             <div className="news-card p-12 text-center">
               <p className="text-muted-foreground">Bu kategoride henüz haber yok — birazdan burada olur.</p>

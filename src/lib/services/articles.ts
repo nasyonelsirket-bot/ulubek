@@ -16,37 +16,42 @@ import {
   searchArticlesInDb,
   getRelatedArticlesFromDb,
   getNextArticleFromDb,
+  getArticleCardsFromDb,
+  getArticleCardsPageFromDb,
 } from "@/lib/db/articles";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
 export type { ArticleWithRelations } from "@/data/types";
 
 const publishedFilter = (article: RawArticle) =>
   (article.status ?? "PUBLISHED") === "PUBLISHED";
 
-async function getMergedRaw(): Promise<RawArticle[]> {
+const getMergedRaw = cache(async (): Promise<RawArticle[]> => {
   try {
     if (await checkDatabaseConnection()) {
-      const dbArticles = await getPublishedArticlesFromDb({ limit: 500 });
+      const dbArticles = await getPublishedArticlesFromDb({ limit: 200 });
       if (dbArticles.length > 0) return dbArticles;
     }
     return getAllArticlesFromStore().filter(publishedFilter);
   } catch {
     return getAllRawArticles().filter(publishedFilter);
   }
-}
-
-export async function getPublishedArticles(limit?: number): Promise<ArticleWithRelations[]> {
-  const raw = await getMergedRaw();
-  return mapRawArticles(limit ? raw.slice(0, limit) : raw);
-}
+});
 
 export async function getPublishedArticlesPage(
   page: number,
   limit: number,
   excludeIds: string[] = []
 ): Promise<{ articles: ArticleWithRelations[]; hasMore: boolean; total: number }> {
+  if (await checkDatabaseConnection()) {
+    const { articles, hasMore } = await getArticleCardsPageFromDb(page, limit, excludeIds);
+    if (articles.length > 0 || page > 1) {
+      return { articles: mapRawArticles(articles), hasMore, total: 0 };
+    }
+  }
+
   const exclude = new Set(excludeIds);
   const sorted = [...(await getMergedRaw())].sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
@@ -64,28 +69,32 @@ export async function getPublishedArticlesPage(
 
 export async function getFeaturedArticles(): Promise<ArticleWithRelations[]> {
   if (await checkDatabaseConnection()) {
-    const featured = await getPublishedArticlesFromDb({ limit: 12, featured: true });
+    const featured = await getArticleCardsFromDb(12, 0, { featured: true });
     if (featured.length > 0) return mapRawArticles(featured);
   }
   return mapRawArticles((await getMergedRaw()).filter((a) => a.featured));
 }
 
-export async function getBreakingNews(): Promise<ArticleWithRelations[]> {
-  let merged: RawArticle[] = [];
-  if (await checkDatabaseConnection()) {
-    merged = await getPublishedArticlesFromDb({ limit: 20, breaking: true });
-  }
-  if (merged.length === 0) {
-    merged = (await getMergedRaw()).filter((a) => a.breaking);
-  }
-  const breaking = getBreakingNewsArticles();
-  const ids = new Set(merged.map((a) => a.id));
-  const combined = [...merged];
-  for (const b of breaking) {
-    if (!ids.has(b.id)) combined.push(b);
-  }
-  return mapRawArticles(combined);
-}
+export const getBreakingNews = unstable_cache(
+  async (): Promise<ArticleWithRelations[]> => {
+    let merged: RawArticle[] = [];
+    if (await checkDatabaseConnection()) {
+      merged = await getArticleCardsFromDb(15, 0, { breaking: true });
+    }
+    if (merged.length === 0) {
+      merged = (await getMergedRaw()).filter((a) => a.breaking);
+    }
+    const breaking = getBreakingNewsArticles();
+    const ids = new Set(merged.map((a) => a.id));
+    const combined = [...merged];
+    for (const b of breaking) {
+      if (!ids.has(b.id)) combined.push(b);
+    }
+    return mapRawArticles(combined);
+  },
+  ["breaking-news"],
+  { revalidate: 60, tags: ["articles"] }
+);
 
 export const getArticleBySlug = cache(async (slug: string): Promise<ArticleWithRelations | null> => {
   const fromDb = await getArticleBySlugFromDb(slug);
@@ -102,10 +111,7 @@ export async function getArticlesByCategorySlug(
   limit?: number
 ): Promise<ArticleWithRelations[]> {
   if (await checkDatabaseConnection()) {
-    const dbArticles = await getPublishedArticlesFromDb({
-      categorySlug,
-      limit: limit ?? 20,
-    });
+    const dbArticles = await getArticleCardsFromDb(limit ?? 20, 0, { categorySlug });
     if (dbArticles.length > 0) return mapRawArticles(dbArticles);
   }
 
@@ -129,8 +135,20 @@ export async function getRelatedArticles(articleId: string, categoryId: string, 
 }
 
 export async function getTrendingArticles(hours: 24 | 168, limit = 6): Promise<ArticleWithRelations[]> {
-  const since = Date.now() - hours * 60 * 60 * 1000;
-  const filtered = (await getMergedRaw()).filter((a) => new Date(a.publishedAt).getTime() >= since);
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  if (await checkDatabaseConnection()) {
+    const recent = await getArticleCardsFromDb(80, 0, { since });
+    if (recent.length > 0) {
+      const sorted = [...recent].sort((a, b) => {
+        const va = estimateViewCount(a.id, a.publishedAt);
+        const vb = estimateViewCount(b.id, b.publishedAt);
+        return vb - va;
+      });
+      return mapRawArticles(sorted.slice(0, limit));
+    }
+  }
+
+  const filtered = (await getMergedRaw()).filter((a) => new Date(a.publishedAt).getTime() >= since.getTime());
   const sorted = [...filtered].sort((a, b) => {
     const va = estimateViewCount(a.id, a.publishedAt);
     const vb = estimateViewCount(b.id, b.publishedAt);
@@ -181,25 +199,38 @@ export async function searchPublishedArticles(query: string): Promise<ArticleWit
   );
 }
 
-export async function getAllCategories() {
-  try {
-    const { listCategoriesFromDb } = await import("@/lib/db/sources");
-    if (await checkDatabaseConnection()) {
-      const dbCategories = await listCategoriesFromDb();
-      return dbCategories.map(({ id, name, slug, description, color, sortOrder }) => ({
-        id,
-        name,
-        slug,
-        description,
-        color,
-        sortOrder,
-      }));
-    }
-  } catch {
-    // fallback
+export async function getPublishedArticles(limit?: number): Promise<ArticleWithRelations[]> {
+  if (await checkDatabaseConnection()) {
+    const cards = await getArticleCardsFromDb(limit ?? 100);
+    if (cards.length > 0) return mapRawArticles(cards);
   }
-  return [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  const raw = await getMergedRaw();
+  return mapRawArticles(limit ? raw.slice(0, limit) : raw);
 }
+
+export const getAllCategories = unstable_cache(
+  async () => {
+    try {
+      const { listCategoriesFromDb } = await import("@/lib/db/sources");
+      if (await checkDatabaseConnection()) {
+        const dbCategories = await listCategoriesFromDb();
+        return dbCategories.map(({ id, name, slug, description, color, sortOrder }) => ({
+          id,
+          name,
+          slug,
+          description,
+          color,
+          sortOrder,
+        }));
+      }
+    } catch {
+      // fallback
+    }
+    return [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  },
+  ["all-categories"],
+  { revalidate: 3600 }
+);
 
 export async function getCategoryBySlug(slug: string) {
   return getDataCategoryBySlug(slug) ?? null;

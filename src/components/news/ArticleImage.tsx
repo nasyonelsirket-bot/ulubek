@@ -38,7 +38,8 @@ export default function ArticleImage({
       alt={alt}
       fill={fill}
       priority={priority}
-      quality={90}
+      quality={priority ? 90 : 75}
+      loading={priority ? undefined : "lazy"}
       unoptimized={isDataUri || isLocalMedia || isRemote}
       className={cn("object-cover transition-transform duration-300", className)}
       sizes={sizes ?? "(max-width: 768px) 100vw, 33vw"}

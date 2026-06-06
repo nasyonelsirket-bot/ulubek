@@ -1,14 +1,14 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
-import { getAllCategories } from "@/lib/services/articles";
+import { categories } from "@/data/categories";
 
-export default async function Footer() {
+export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const categories = await getAllCategories();
+  const navCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
-    <footer className="mt-auto border-t border-border bg-white safe-bottom">
-      <div className="mx-auto max-w-6xl px-4 py-10 md:px-6">
+    <footer className="safe-bottom mt-auto border-t border-border bg-white">
+      <div className="page-shell py-8 md:py-10">
         <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <Logo variant="footer" linked />
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -20,7 +20,7 @@ export default async function Footer() {
           <div>
             <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Kategoriler</h3>
             <ul className="space-y-2">
-              {categories.slice(0, 6).map((category) => (
+              {navCategories.slice(0, 6).map((category) => (
                 <li key={category.id}>
                   <Link
                     href={`/kategori/${category.slug}`}

@@ -46,7 +46,7 @@ import { PORTAL_LIVE_FEEDS } from "@/data/portal-live-feeds";
 import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
 import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { isTurkishContent } from "@/lib/utils/turkish-content";
 
 const parser = new Parser({
@@ -254,6 +254,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
   appendPipelineLog(summary, trigger, sourceId);
 
   if (totalImported > 0) {
+    revalidateTag("articles");
     revalidatePath("/");
     for (const cat of categories) {
       revalidatePath(`/kategori/${cat.slug}`);

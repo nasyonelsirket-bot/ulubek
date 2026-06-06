@@ -13,7 +13,7 @@ export default function TrendStrip({ articles }: TrendStripProps) {
   if (articles.length === 0) return null;
 
   return (
-    <section className="mb-8">
+    <section className="mb-6 md:mb-8">
       <div className="mb-3 flex items-center gap-2 px-0.5">
         <Flame className="h-5 w-5 text-orange-500" fill="currentColor" />
         <h2 className="font-headline text-lg font-extrabold text-[var(--navy)]">Trend</h2>
@@ -22,12 +22,12 @@ export default function TrendStrip({ articles }: TrendStripProps) {
         </span>
       </div>
 
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none">
+      <div className="mobile-scroll-x flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scrollbar-none sm:gap-4">
         {articles.slice(0, 8).map((article, i) => (
           <Link
             key={article.id}
             href={`/haber/${article.slug}`}
-            className="news-card group w-[260px] shrink-0 snap-start sm:w-[280px]"
+            className="news-card group w-[min(calc(100vw-2.5rem),260px)] shrink-0 snap-start sm:w-[280px]"
           >
             <div className="relative aspect-[16/10] overflow-hidden bg-muted">
               <ArticleImage

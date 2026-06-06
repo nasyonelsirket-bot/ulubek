@@ -29,9 +29,9 @@ export default function Header({ categories }: HeaderProps) {
   ) as Category[];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:px-6">
-        <Logo variant="header" priority />
+    <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/80">
+      <div className="page-shell flex items-center gap-2 py-2.5 md:gap-3 md:py-3">
+        <Logo variant="header" priority className="max-w-[140px] sm:max-w-none" />
 
         <nav className="ml-auto hidden items-center gap-1 lg:flex" aria-label="Kategoriler">
           {navItems.map((cat) => {
@@ -61,7 +61,7 @@ export default function Header({ categories }: HeaderProps) {
           </Link>
           <Link
             href="/arama"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="touch-target flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             aria-label="Ara"
           >
             <Search className="h-5 w-5" />
@@ -69,7 +69,7 @@ export default function Header({ categories }: HeaderProps) {
           <button
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground lg:hidden"
+            className="touch-target flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground lg:hidden"
             aria-label="Menü"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { getDefaultMetadata } from "@/lib/seo/metadata";
 import ThemeProvider from "@/components/theme/ThemeProvider";
@@ -11,14 +11,20 @@ const jakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
-// headline = aynı aile, CSS'te font-weight:800 ile vurgu
-
 export const metadata: Metadata = getDefaultMetadata();
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr" className={`${jakarta.variable} h-full`} suppressHydrationWarning>
-      <body className="flex min-h-full flex-col bg-background font-sans text-foreground antialiased">
+      <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

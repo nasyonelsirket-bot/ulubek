@@ -15,12 +15,12 @@ export default function GozeKacmasinBlock({ articles }: GozeKacmasinBlockProps) 
   const categorySlug = lead.category?.slug ?? "gundem";
 
   return (
-    <section className="mb-10">
+    <section className="mb-8 md:mb-10">
       <NewsSectionHead title="Kaçırma" href="/arama" linkLabel="Hepsi" badge="Hot" />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <article className="news-card group overflow-hidden lg:row-span-2">
-          <Link href={`/haber/${lead.slug}`} className="relative block aspect-[4/3] overflow-hidden lg:aspect-auto lg:h-full lg:min-h-[320px]">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
+        <article className="news-card group overflow-hidden">
+          <Link href={`/haber/${lead.slug}`} className="relative block aspect-[16/10] overflow-hidden sm:aspect-[4/3] lg:aspect-auto lg:min-h-[320px] lg:h-full">
             <ArticleImage
               src={lead.image}
               alt={lead.title}
@@ -29,7 +29,7 @@ export default function GozeKacmasinBlock({ articles }: GozeKacmasinBlockProps) 
               sizes="(max-width:1024px) 100vw, 50vw"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-            <div className="absolute bottom-0 p-5">
+            <div className="absolute bottom-0 p-4 sm:p-5">
               {lead.category && (
                 <span
                   className="mb-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white"
@@ -38,7 +38,7 @@ export default function GozeKacmasinBlock({ articles }: GozeKacmasinBlockProps) 
                   {lead.category.name}
                 </span>
               )}
-              <h3 className="font-headline text-xl font-extrabold leading-tight text-white md:text-2xl">
+              <h3 className="font-headline text-lg font-extrabold leading-tight text-white sm:text-xl md:text-2xl">
                 {lead.title}
               </h3>
             </div>

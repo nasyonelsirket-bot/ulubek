@@ -25,7 +25,7 @@ export default function CategoryBlock({ name, slug, articles }: Omit<CategoryBlo
   return (
     <section className="mb-10">
       <NewsSectionHead title={name} href={`/kategori/${slug}`} />
-      <PortalArticleGrid articles={articles.slice(0, 8)} columns={4} variant="compact" priorityCount={4} />
+      <PortalArticleGrid articles={articles.slice(0, 8)} columns={2} variant="compact" priorityCount={4} />
     </section>
   );
 }

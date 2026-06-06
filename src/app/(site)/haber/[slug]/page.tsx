@@ -67,10 +67,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     <>
       <JsonLd data={jsonLd} />
 
-      <article className="safe-bottom mx-auto max-w-3xl px-4 pb-10 pt-0 md:max-w-4xl md:px-6 md:pt-4">
-        {/* Kapak görseli */}
-        <div className="relative -mx-4 mb-6 overflow-hidden md:mx-0 md:rounded-2xl">
-          <div className="relative aspect-[4/3] w-full md:aspect-[16/9]">
+      <article className="safe-bottom page-shell pb-10 pt-0 md:pt-4">
+        {/* Kapak görseli — mobilde tam genişlik */}
+        <div className="relative -mx-4 mb-5 overflow-hidden sm:mx-0 sm:mb-6 sm:rounded-2xl">
+          <div className="relative aspect-[16/10] w-full sm:aspect-[4/3] md:aspect-[16/9]">
             <ArticleImage
               src={article.image}
               alt={article.title}
@@ -94,15 +94,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           )}
         </div>
 
-        <h1 className="font-headline text-2xl font-extrabold leading-[1.15] text-[var(--navy)] md:text-4xl md:leading-[1.12]">
+        <h1 className="font-headline text-[1.375rem] font-extrabold leading-[1.2] text-[var(--navy)] sm:text-2xl md:text-4xl md:leading-[1.12]">
           {article.title}
         </h1>
 
         {article.excerpt && (
-          <p className="mt-4 text-lg font-medium leading-relaxed text-muted-foreground">{article.excerpt}</p>
+          <p className="mt-3 text-base font-medium leading-relaxed text-muted-foreground sm:mt-4 sm:text-lg">{article.excerpt}</p>
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-y border-border py-4 text-sm text-muted-foreground">
+        <div className="mt-4 flex flex-col gap-2 border-y border-border py-3 text-sm text-muted-foreground sm:mt-5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:py-4">
           <time dateTime={article.publishedAt.toISOString()}>{formatDateTime(article.publishedAt.toISOString())}</time>
           <span className="flex items-center gap-1">
             <Clock className="h-3.5 w-3.5" />
@@ -127,8 +127,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           </div>
         )}
 
-        <div className="mt-8 rounded-2xl border border-border bg-secondary/50 p-5">
-          <p className="mb-3 text-sm font-bold text-[var(--navy)]">Paylaş</p>
+        <div className="mt-6 rounded-2xl border border-border bg-secondary/50 p-4 sm:mt-8 sm:p-5">
           <ShareButtons title={article.title} url={`${siteUrl}/haber/${article.slug}`} />
         </div>
 

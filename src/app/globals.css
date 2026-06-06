@@ -44,6 +44,42 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+/* Mobil sayfa kabuğu */
+.page-shell {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 768px) {
+  .page-shell {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* Yatay kaydırma — kenardan kenara hissi */
+.mobile-scroll-x {
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+  scroll-padding-inline: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .mobile-scroll-x {
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .font-headline {
@@ -139,6 +175,13 @@ body {
   border-color: var(--navy);
 }
 
+@media (max-width: 767px) {
+  .category-pill {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.75rem;
+  }
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -158,6 +201,27 @@ body {
   line-height: 1.85;
   color: #334155;
   font-size: 1.0625rem;
+}
+
+@media (max-width: 767px) {
+  .prose-content p {
+    font-size: 1rem;
+    line-height: 1.75;
+    margin-bottom: 1rem;
+  }
+
+  .prose-content h2 {
+    font-size: 1.2rem;
+    margin-top: 1.5rem;
+  }
+
+  .prose-content h3 {
+    font-size: 1.05rem;
+  }
+
+  .news-section-title {
+    font-size: 1.125rem;
+  }
 }
 
 .prose-content h2 {
@@ -240,7 +304,15 @@ body {
 }
 
 .safe-bottom {
-  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --logo-height: 36px;
+    --header-height: 56px;
+    --bottom-nav-height: 60px;
+  }
 }
 
 @media (min-width: 768px) {
