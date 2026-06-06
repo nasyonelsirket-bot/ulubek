@@ -1,10 +1,11 @@
 import Parser from "rss-parser";
 import type { MockSource, SourceFetchType, SourceUrlType } from "@/data/types";
 import { processArticleWithAI } from "@/lib/ai/engine";
+import { processWithLocalEngine } from "@/lib/ai/local-engine";
 import { categories } from "@/data/categories";
 import { slugify } from "@/lib/utils/slug";
 import { calcReadTime } from "@/lib/utils/content";
-import { resolveArticleImage } from "./resolve-image";
+import { resolveArticleImage, resolveArticleImageFast } from "./resolve-image";
 import { matchCategory, getCategoryIdBySlug } from "./category-matcher";
 import { isWithinLookbackDays } from "@/lib/ai/content-formatter";
 import { getSettings } from "@/lib/settings/store";
@@ -19,6 +20,8 @@ import {
   savePipelineArticleToDb,
   getExistingArticlesForPipeline,
   countArticlesInDb,
+  isDuplicateSourceUrl,
+  getExistingSourceUrlsFromDb,
 } from "@/lib/db/articles";
 import { getActiveSourcesForPipeline } from "@/lib/db/pipeline-sources";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
@@ -36,6 +39,7 @@ import { scrapeWebsite, scrapeArticlePage, isRssUrl } from "./scraper";
 import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
 import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
+import { revalidatePath } from "next/cache";
 
 const parser = new Parser({
   timeout: 20000,
@@ -69,6 +73,8 @@ export interface PipelineOptions {
   respectInterval?: boolean;
   bootstrap?: boolean;
   trigger?: "cron" | "manual" | "single" | "bootstrap";
+  fastTrack?: boolean;
+  maxSourcesPerRun?: number;
 }
 
 interface FeedItem {
@@ -80,6 +86,17 @@ interface FeedItem {
 }
 
 export type { FeedItem };
+
+export interface ProcessItemsOptions {
+  /** Yerel AI + hızlı görsel — NewsAPI için */
+  fastTrack?: boolean;
+  /** Tek çalışmada en fazla kaç haber yayınlansın */
+  maxImport?: number;
+  /** Kısa içerik için sayfa kazımayı atla */
+  skipEnrich?: boolean;
+  /** Paralel işleme (varsayılan: fastTrack ise 4) */
+  concurrency?: number;
+}
 
 function resolveUrlType(source: MockSource): SourceUrlType {
   if (source.urlType) return source.urlType;
@@ -134,13 +151,28 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     respectInterval = !force,
     bootstrap = false,
     trigger = sourceId ? "single" : bootstrap ? "bootstrap" : force ? "manual" : "cron",
+    fastTrack: fastTrackOpt,
+    maxSourcesPerRun = trigger === "cron" ? 16 : 50,
   } = options;
+
+  const fastTrack = fastTrackOpt ?? (trigger === "cron" && !bootstrap);
 
   let sources = (await getActiveSourcesForPipeline()).filter((s) => s.isActive);
   if (sourceId) {
     sources = sources.filter((s) => s.id === sourceId);
   } else if (respectInterval && !bootstrap) {
     sources = sources.filter((s) => shouldFetchSource(s, false, true));
+  }
+
+  // Önce hiç taranmamış / en eski kaynaklar
+  sources.sort((a, b) => {
+    if (!a.lastFetchedAt) return -1;
+    if (!b.lastFetchedAt) return 1;
+    return new Date(a.lastFetchedAt).getTime() - new Date(b.lastFetchedAt).getTime();
+  });
+
+  if (!sourceId && !bootstrap) {
+    sources = sources.slice(0, maxSourcesPerRun);
   }
 
   const results: PipelineResult[] = [];
@@ -162,13 +194,32 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     return summary;
   }
 
-  for (const source of sources) {
-    if (!shouldFetchSource(source, force || bootstrap, respectInterval && !bootstrap)) continue;
-    const result = await processSource(source, bootstrap);
-    results.push(result);
-    totalImported += result.imported;
-    totalSkipped += result.skipped;
-    totalFound += result.found;
+  const concurrency = fastTrack ? 5 : 2;
+  for (let i = 0; i < sources.length; i += concurrency) {
+    const batch = sources.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map((source) => {
+        if (!shouldFetchSource(source, force || bootstrap, respectInterval && !bootstrap)) {
+          return Promise.resolve({
+            sourceId: source.id,
+            sourceName: source.name,
+            found: 0,
+            imported: 0,
+            skipped: 0,
+            duplicate: 0,
+            spam: 0,
+            errors: [] as string[],
+          });
+        }
+        return processSource(source, bootstrap, fastTrack);
+      })
+    );
+    for (const result of batchResults) {
+      results.push(result);
+      totalImported += result.imported;
+      totalSkipped += result.skipped;
+      totalFound += result.found;
+    }
   }
 
   const summary: PipelineSummary = {
@@ -182,6 +233,14 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
   };
 
   appendPipelineLog(summary, trigger, sourceId);
+
+  if (totalImported > 0) {
+    revalidatePath("/");
+    for (const cat of categories) {
+      revalidatePath(`/kategori/${cat.slug}`);
+    }
+  }
+
   return summary;
 }
 
@@ -242,10 +301,14 @@ function extractRssImage(item: Record<string, unknown>): string | undefined {
   return match?.[1];
 }
 
-async function fetchItemsFromSource(source: MockSource, bootstrap: boolean): Promise<FeedItem[]> {
+async function fetchItemsFromSource(
+  source: MockSource,
+  bootstrap: boolean,
+  skipEnrich = false
+): Promise<FeedItem[]> {
   const settings = getSettings();
   const lookback = settings.scanLookbackDays;
-  const itemLimit = bootstrap ? 30 : 12;
+  const itemLimit = bootstrap ? 30 : skipEnrich ? 15 : 12;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -278,7 +341,7 @@ async function fetchItemsFromSource(source: MockSource, bootstrap: boolean): Pro
     const enriched: FeedItem[] = [];
     for (const item of rawItems) {
       if (!item.title || !item.link) continue;
-      enriched.push(await enrichItemContent(item));
+      enriched.push(skipEnrich ? item : await enrichItemContent(item));
     }
     return enriched;
   }
@@ -302,9 +365,13 @@ async function fetchItemsFromSource(source: MockSource, bootstrap: boolean): Pro
   return items;
 }
 
-async function processSource(source: MockSource, bootstrap = false): Promise<PipelineResult> {
+async function processSource(
+  source: MockSource,
+  bootstrap = false,
+  fastTrack = false
+): Promise<PipelineResult> {
   try {
-    const items = await fetchItemsFromSource(source, bootstrap);
+    const items = await fetchItemsFromSource(source, bootstrap, fastTrack);
     if (items.length === 0) {
       const empty: PipelineResult = {
         sourceId: source.id,
@@ -319,7 +386,13 @@ async function processSource(source: MockSource, bootstrap = false): Promise<Pip
       updateSourceFetchTime(source.id, null, 0);
       return empty;
     }
-    return processItemsWithSource(source, items, bootstrap);
+    const categorySlug = categories.find((c) => c.id === source.categoryId)?.slug;
+    return processItemsWithSource(source, items, bootstrap, categorySlug, {
+      fastTrack,
+      maxImport: fastTrack ? 5 : bootstrap ? 30 : 8,
+      skipEnrich: fastTrack,
+      concurrency: fastTrack ? 4 : 1,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
     updateSourceFetchTime(source.id, msg, 0);
@@ -341,8 +414,16 @@ export async function processItemsWithSource(
   source: MockSource,
   items: FeedItem[],
   bootstrap = false,
-  defaultCategorySlug?: string
+  defaultCategorySlug?: string,
+  options: ProcessItemsOptions = {}
 ): Promise<PipelineResult> {
+  const {
+    fastTrack = false,
+    maxImport = fastTrack ? 12 : bootstrap ? 30 : 8,
+    skipEnrich = fastTrack,
+    concurrency = fastTrack ? 4 : 1,
+  } = options;
+
   const result: PipelineResult = {
     sourceId: source.id,
     sourceName: source.name,
@@ -361,6 +442,10 @@ export async function processItemsWithSource(
     }
 
     const seen = getSeenUrls();
+    for (const url of await getExistingSourceUrlsFromDb()) {
+      seen.add(url);
+    }
+
     const dbArticles = await getExistingArticlesForPipeline();
     const jsonArticles = getAllArticlesFromStore();
     const mergedIds = new Set(dbArticles.map((a) => a.id));
@@ -375,25 +460,37 @@ export async function processItemsWithSource(
       description: c.description,
     }));
 
-    for (const item of items) {
+    let importedCount = 0;
+
+    async function processOneItem(item: FeedItem): Promise<void> {
+      if (importedCount >= maxImport) return;
+
       const link = item.link;
       let title = item.title;
       let rawContent = item.content;
 
-      if (rawContent.length < 80 && link) {
+      if (!skipEnrich && rawContent.length < 80 && link) {
         const enriched = await enrichItemContent(item);
         title = enriched.title;
         rawContent = enriched.content;
       }
 
-      const queueEntry = addQueueItem({
-        sourceId: source.id,
-        sourceName: source.name,
-        sourceUrl: link || source.url,
-        originalTitle: title,
-        originalContent: rawContent,
-        status: "SCANNED",
-      });
+      if (link && (seen.has(link) || (await isDuplicateSourceUrl(link)))) {
+        result.skipped++;
+        result.duplicate++;
+        return;
+      }
+
+      const queueEntry = fastTrack
+        ? null
+        : addQueueItem({
+            sourceId: source.id,
+            sourceName: source.name,
+            sourceUrl: link || source.url,
+            originalTitle: title,
+            originalContent: rawContent,
+            status: "SCANNED",
+          });
 
       const preCheck = checkContentBeforePublish({
         url: link,
@@ -409,25 +506,32 @@ export async function processItemsWithSource(
         result.skipped++;
         if (preCheck.reason === "spam") result.spam++;
         else if (isDuplicateReason(preCheck.reason)) result.duplicate++;
-        updateQueueItem(queueEntry.id, { status: "REJECTED", error: preCheck.message ?? preCheck.reason });
-        continue;
+        if (queueEntry) {
+          updateQueueItem(queueEntry.id, { status: "REJECTED", error: preCheck.message ?? preCheck.reason });
+        }
+        return;
       }
 
       if (!title) {
         result.skipped++;
-        updateQueueItem(queueEntry.id, { status: "REJECTED", error: "Başlık yok" });
-        continue;
+        if (queueEntry) updateQueueItem(queueEntry.id, { status: "REJECTED", error: "Başlık yok" });
+        return;
       }
 
       try {
-        updateQueueItem(queueEntry.id, { status: "PENDING" });
+        if (queueEntry) updateQueueItem(queueEntry.id, { status: "PENDING" });
 
-        const aiResult = await processArticleWithAI({
-          title,
-          content: rawContent,
-          categories: categoryList,
-          sourceName: source.name,
-        });
+        const aiResult = fastTrack
+          ? await processWithLocalEngine(
+              { title, content: rawContent, categories: categoryList, sourceName: source.name },
+              true
+            )
+          : await processArticleWithAI({
+              title,
+              content: rawContent,
+              categories: categoryList,
+              sourceName: source.name,
+            });
 
         const postCheck = checkContentBeforePublish({
           url: link,
@@ -443,8 +547,10 @@ export async function processItemsWithSource(
           result.skipped++;
           if (postCheck.reason === "spam") result.spam++;
           else if (isDuplicateReason(postCheck.reason)) result.duplicate++;
-          updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.message ?? postCheck.reason });
-          continue;
+          if (queueEntry) {
+            updateQueueItem(queueEntry.id, { status: "REJECTED", error: postCheck.message ?? postCheck.reason });
+          }
+          return;
         }
 
         const categorySlug =
@@ -452,13 +558,21 @@ export async function processItemsWithSource(
           aiResult.categorySlug ||
           matchCategory(title, rawContent, source.categoryId);
         const articleId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const imageResult = await resolveArticleImage({
-          title: aiResult.title,
-          categorySlug,
-          sourceImageUrl: item.sourceImage,
-          articleId,
-          breaking: aiResult.breaking,
-        });
+        const imageResult = fastTrack
+          ? await resolveArticleImageFast({
+              title: aiResult.title,
+              categorySlug,
+              sourceImageUrl: item.sourceImage,
+              articleId,
+              breaking: aiResult.breaking,
+            })
+          : await resolveArticleImage({
+              title: aiResult.title,
+              categorySlug,
+              sourceImageUrl: item.sourceImage,
+              articleId,
+              breaking: aiResult.breaking,
+            });
 
         const publishedAt = item.publishedAt
           ? new Date(item.publishedAt).toISOString()
@@ -510,37 +624,70 @@ export async function processItemsWithSource(
         });
 
         const saved = dbArticle ?? article;
-        if (!dbArticle) saveArticle(article);
-        else saveArticle(saved);
+        if (!dbArticle) {
+          if (link && (await isDuplicateSourceUrl(link))) {
+            result.skipped++;
+            result.duplicate++;
+            return;
+          }
+          saveArticle(article);
+        } else {
+          saveArticle(saved);
+        }
 
-        if (link) markSeen(link);
+        if (link) {
+          seen.add(link);
+          markSeen(link);
+        }
         articleIndex.titles.push(aiResult.title);
         articleIndex.contentHashes.add(contentHash(aiResult.content));
-        updateQueueItem(queueEntry.id, {
-          status: "PUBLISHED",
-          articleId: saved.id,
-          imagePrompt: `[${imageResult.provider}] ${imageResult.prompt}`,
-        });
-        void notifyArticlePublished(saved.id);
-        void publishArticleToSocial({
-          title: saved.title,
-          excerpt: saved.excerpt,
-          slug: saved.slug,
-          breaking: saved.breaking,
-          image: saved.image,
-        });
+        if (queueEntry) {
+          updateQueueItem(queueEntry.id, {
+            status: "PUBLISHED",
+            articleId: saved.id,
+            imagePrompt: `[${imageResult.provider}] ${imageResult.prompt}`,
+          });
+        }
+        if (!fastTrack) {
+          void notifyArticlePublished(saved.id);
+          void publishArticleToSocial({
+            title: saved.title,
+            excerpt: saved.excerpt,
+            slug: saved.slug,
+            breaking: saved.breaking,
+            image: saved.image,
+          });
+        }
         result.imported++;
-
-        const currentCount = await checkDatabaseConnection()
-          ? await countArticlesInDb()
-          : getDynamicArticleCount();
-        if (bootstrap && currentCount >= BOOTSTRAP_ARTICLE_TARGET) break;
+        importedCount++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "İşleme hatası";
         result.errors.push(msg);
-        updateQueueItem(queueEntry.id, { status: "REJECTED", error: msg });
+        if (queueEntry) updateQueueItem(queueEntry.id, { status: "REJECTED", error: msg });
         result.skipped++;
       }
+    }
+
+    if (concurrency <= 1) {
+      for (const item of items) {
+        if (importedCount >= maxImport) break;
+        await processOneItem(item);
+        if (bootstrap) {
+          const currentCount = await checkDatabaseConnection()
+            ? await countArticlesInDb()
+            : getDynamicArticleCount();
+          if (currentCount >= BOOTSTRAP_ARTICLE_TARGET) break;
+        }
+      }
+    } else {
+      let index = 0;
+      async function worker() {
+        while (index < items.length && importedCount < maxImport) {
+          const current = index++;
+          await processOneItem(items[current]);
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
     }
 
     updateSourceFetchTime(source.id, result.errors.length > 0 ? result.errors[0] : null, result.imported);

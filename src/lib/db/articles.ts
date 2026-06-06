@@ -64,6 +64,17 @@ export async function isDuplicateSourceUrl(url: string): Promise<boolean> {
   return Boolean(found);
 }
 
+export async function getExistingSourceUrlsFromDb(limit = 2000): Promise<string[]> {
+  if (!(await checkDatabaseConnection())) return [];
+  const rows = await prisma.article.findMany({
+    where: { sourceUrl: { not: null } },
+    select: { sourceUrl: true },
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => r.sourceUrl!).filter(Boolean);
+}
+
 export interface SavePipelineArticleInput {
   title: string;
   slug: string;

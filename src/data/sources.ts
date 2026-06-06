@@ -1,33 +1,31 @@
 import type { MockSource } from "./types";
+import { TURKISH_RSS_FEEDS } from "./turkish-rss-feeds";
+import { categories } from "./categories";
 import { MINISTRY_SOURCES } from "./ministry-sources";
 
+function slugToCategoryId(slug: string): string {
+  return categories.find((c) => c.slug === slug)?.id ?? "1";
+}
+
+const RSS_SOURCES: MockSource[] = TURKISH_RSS_FEEDS.map((feed, i) => ({
+  id: `rss-${i + 1}`,
+  name: feed.name,
+  url: feed.url,
+  type: "RSS",
+  kind: "RSS",
+  fetchType: "RSS",
+  urlType: "RSS",
+  isActive: true,
+  trustScore: feed.trustScore,
+  categoryId: slugToCategoryId(feed.categorySlug),
+  lastFetchedAt: null,
+  fetchIntervalMin: feed.fetchIntervalMin ?? 1,
+  lastFetchError: null,
+  articlesImported: 0,
+}));
+
 export const sources: MockSource[] = [
-  {
-    id: "src-1",
-    name: "Anadolu Ajansı",
-    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel",
-    type: "RSS",
-    kind: "RSS",
-    fetchType: "RSS",
-    isActive: true,
-    trustScore: 0.95,
-    categoryId: "1",
-    lastFetchedAt: "2026-05-30T08:00:00",
-    fetchIntervalMin: 1,
-  },
-  {
-    id: "src-2",
-    name: "BBC Türkçe",
-    url: "https://www.bbc.com/turkce/index.xml",
-    type: "RSS",
-    kind: "RSS",
-    fetchType: "RSS",
-    isActive: true,
-    trustScore: 0.9,
-    categoryId: "6",
-    lastFetchedAt: "2026-05-30T07:30:00",
-    fetchIntervalMin: 1,
-  },
+  ...RSS_SOURCES,
   ...MINISTRY_SOURCES.map((s, i) => ({
     ...s,
     id: `ministry-${i + 1}`,
@@ -38,3 +36,5 @@ export const sources: MockSource[] = [
 export function getSourceById(id: string): MockSource | undefined {
   return sources.find((s) => s.id === id);
 }
+
+export { TURKISH_RSS_FEEDS };

@@ -45,6 +45,28 @@ function buildCoverInput(input: ResolveImageInput): CoverComposeInput {
   };
 }
 
+/** NewsAPI hızlı yol — kaynak görseli doğrudan kullanır, işleme yapmaz. */
+export async function resolveArticleImageFast(
+  input: ResolveImageInput
+): Promise<ImageResolutionResult> {
+  const sourceUrl = input.sourceImageUrl?.trim();
+  if (sourceUrl) {
+    return {
+      url: sourceUrl,
+      urlSquare: sourceUrl,
+      urlStory: sourceUrl,
+      prompt: sourceUrl,
+      provider: "source",
+    };
+  }
+  const placeholder = generatePlaceholderCover(input.title, input.categorySlug);
+  return {
+    url: placeholder,
+    prompt: "placeholder",
+    provider: "placeholder",
+  };
+}
+
 export async function resolveArticleImage(input: ResolveImageInput): Promise<ImageResolutionResult> {
   const settings = getSettings();
   const fileId = input.articleId ?? `img-${Date.now()}`;

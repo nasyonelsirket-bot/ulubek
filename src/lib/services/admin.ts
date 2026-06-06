@@ -208,12 +208,18 @@ export async function fetchAllSources() {
 
   if (dbReady) {
     const { prisma } = await import("@/lib/db/prisma");
+    const { ensureDefaultRssSources } = await import("@/lib/db/ensure-sources");
+    await ensureDefaultRssSources();
     dynamicCount = await prisma.article.count();
   }
 
   if (dynamicCount < BOOTSTRAP_ARTICLE_TARGET) {
     const { runBootstrapImport } = await import("@/lib/ai-engine/pipeline");
-    const summary = await runBootstrapImport();
+    const { runNewsApiPipeline } = await import("@/lib/newsapi/pipeline");
+    const [summary] = await Promise.all([
+      runBootstrapImport(),
+      runNewsApiPipeline({ force: true, trigger: "manual" }),
+    ]);
     if (dbReady) {
       const { prisma } = await import("@/lib/db/prisma");
       return {
@@ -230,7 +236,11 @@ export async function fetchAllSources() {
   }
 
   const { runAutoNewsPipeline } = await import("@/lib/ai-engine/pipeline");
-  const summary = await runAutoNewsPipeline({ force: true, trigger: "manual" });
+  const { runNewsApiPipeline } = await import("@/lib/newsapi/pipeline");
+  const [summary] = await Promise.all([
+    runAutoNewsPipeline({ force: true, trigger: "manual", fastTrack: true }),
+    runNewsApiPipeline({ force: true, trigger: "manual" }),
+  ]);
   if (dbReady) {
     const { prisma } = await import("@/lib/db/prisma");
     return {

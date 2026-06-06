@@ -20,6 +20,9 @@ export interface NewsApiSyncState {
   lastDuplicate: number;
   lastError: string | null;
   feeds: NewsApiFeedStatus[];
+  /** Takılı kalan running durumunu önlemek için */
+  runningSince?: string | null;
+  feedRotationIndex?: number;
 }
 
 const DEFAULT_STATE: NewsApiSyncState = {
@@ -43,14 +46,28 @@ export function saveNewsApiSyncState(state: NewsApiSyncState): void {
 
 export function markNewsApiSyncRunning(): NewsApiSyncState {
   const current = getNewsApiSyncState();
-  const next = { ...current, lastSyncStatus: "running" as const, lastError: null };
+  const next = {
+    ...current,
+    lastSyncStatus: "running" as const,
+    lastError: null,
+    runningSince: new Date().toISOString(),
+  };
   saveNewsApiSyncState(next);
   return next;
 }
 
-export function shouldRunNewsApiSync(intervalSeconds = 60): boolean {
+const STALE_RUNNING_MS = 3 * 60 * 1000;
+
+function isStaleRunning(state: NewsApiSyncState): boolean {
+  if (state.lastSyncStatus !== "running") return false;
+  const since = state.runningSince || state.lastSyncAt;
+  if (!since) return true;
+  return Date.now() - new Date(since).getTime() > STALE_RUNNING_MS;
+}
+
+export function shouldRunNewsApiSync(intervalSeconds = 30): boolean {
   const state = getNewsApiSyncState();
-  if (state.lastSyncStatus === "running") return false;
+  if (state.lastSyncStatus === "running" && !isStaleRunning(state)) return false;
   if (!state.lastSyncAt) return true;
   const elapsed = Date.now() - new Date(state.lastSyncAt).getTime();
   return elapsed >= intervalSeconds * 1000;

@@ -54,8 +54,8 @@ export async function fetchNewsApiFeed(feed: NewsApiFeed): Promise<NewsApiArticl
 
   const res = await fetch(url, {
     headers: { "User-Agent": "UlubekMedya/2.0 (+https://ulubekmedya.com)" },
-    signal: AbortSignal.timeout(20000),
-    next: { revalidate: 0 },
+    signal: AbortSignal.timeout(12000),
+    cache: "no-store",
   });
 
   if (!res.ok) {

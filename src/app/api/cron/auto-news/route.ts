@@ -5,6 +5,7 @@ import { BOOTSTRAP_ARTICLE_TARGET } from "@/lib/ai-engine/runtime-init";
 import { runNewsApiPipeline } from "@/lib/newsapi/pipeline";
 import { countArticlesInDb } from "@/lib/db/articles";
 import { checkDatabaseConnection } from "@/lib/db/prisma";
+import { ensureDefaultRssSources } from "@/lib/db/ensure-sources";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,21 +22,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const newsApiSummary = await runNewsApiPipeline({ trigger: "cron" });
-
-    let summary;
+    const rssSourceCount = await ensureDefaultRssSources();
     const count = await getArticleCount();
-    if (count < BOOTSTRAP_ARTICLE_TARGET) {
-      summary = await runBootstrapImport(3);
-    } else {
-      summary = await runAutoNewsPipeline({ respectInterval: true, trigger: "cron" });
-    }
+
+    const [newsApiSummary, rssSummary] = await Promise.all([
+      runNewsApiPipeline({ trigger: "cron" }),
+      count < BOOTSTRAP_ARTICLE_TARGET
+        ? runBootstrapImport(2)
+        : runAutoNewsPipeline({ respectInterval: true, trigger: "cron", fastTrack: true }),
+    ]);
 
     return NextResponse.json({
       ok: true,
       databaseCount: await getArticleCount(),
+      rssSourcesRegistered: rssSourceCount,
       newsApi: newsApiSummary,
-      ...summary,
+      ...rssSummary,
     });
   } catch (err) {
     return NextResponse.json(

@@ -184,11 +184,20 @@ function extractTags(text: string, categorySlug: string): string[] {
   return tags.slice(0, 5);
 }
 
-export async function processWithLocalEngine(input: AIProcessInput): Promise<AIProcessedResult> {
+export async function processWithLocalEngine(
+  input: AIProcessInput,
+  compact = false
+): Promise<AIProcessedResult> {
   const combined = `${input.title} ${stripHtml(input.content)}`;
   const categorySlug = detectCategory(combined, input.categories);
   const title = neutralizeTitle(input.title);
-  const content = expandToLongForm(title, input.content);
+  const raw = stripHtml(input.content) || title;
+
+  const content = compact
+    ? enrichArticleHtml(
+        `<p>${raw.slice(0, 800)}</p><p>${title} konusundaki gelişmeler kamuoyunda takip ediliyor. Resmi açıklamalar ve sürece ilişkin yeni bilgiler paylaşıldıkça haber güncellenecektir.</p>`
+      )
+    : expandToLongForm(title, input.content);
   const excerpt = buildExcerptFromContent(content, 150, 250);
   const tags = extractTags(combined, categorySlug);
 

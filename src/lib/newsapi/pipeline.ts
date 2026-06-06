@@ -24,6 +24,10 @@ import {
 } from "./sync-state";
 import { getSettings } from "@/lib/settings/store";
 
+/** Cron başına en fazla kaç feed çekilsin (API kotası + hız dengesi) */
+const FEEDS_PER_SYNC = 5;
+const MAX_IMPORT_PER_FEED = 6;
+
 function virtualSource(feed: NewsApiFeed): MockSource {
   return {
     id: `newsapi-${feed.id}`,
@@ -58,6 +62,18 @@ export interface NewsApiPipelineOptions {
   trigger?: "cron" | "manual";
 }
 
+function pickFeedsForSync(force: boolean): NewsApiFeed[] {
+  if (force) return NEWSAPI_FEEDS;
+
+  const state = getNewsApiSyncState();
+  const start = state.feedRotationIndex ?? 0;
+  const picked: NewsApiFeed[] = [];
+  for (let i = 0; i < FEEDS_PER_SYNC; i++) {
+    picked.push(NEWSAPI_FEEDS[(start + i) % NEWSAPI_FEEDS.length]);
+  }
+  return picked;
+}
+
 export async function runNewsApiPipeline(
   options: NewsApiPipelineOptions = {}
 ): Promise<PipelineSummary | null> {
@@ -74,11 +90,12 @@ export async function runNewsApiPipeline(
       lastSyncStatus: "error",
       lastError: "NewsAPI anahtarı eksik",
       lastSyncAt: new Date().toISOString(),
+      runningSince: null,
     });
     return null;
   }
 
-  if (!force && !shouldRunNewsApiSync(60)) {
+  if (!force && !shouldRunNewsApiSync(30)) {
     return null;
   }
 
@@ -91,83 +108,135 @@ export async function runNewsApiPipeline(
   let totalFound = 0;
   let totalDuplicate = 0;
   let globalError: string | null = null;
+  let summary: PipelineSummary = {
+    processed: 0,
+    imported: 0,
+    skipped: 0,
+    found: 0,
+    sources: [],
+    timestamp: new Date().toISOString(),
+  };
 
-  for (const feed of NEWSAPI_FEEDS) {
-    const feedStatus: import("./sync-state").NewsApiFeedStatus = {
-      id: feed.id,
-      name: feed.name,
-      found: 0,
-      imported: 0,
-      skipped: 0,
-      duplicate: 0,
-      lastFetchedAt: new Date().toISOString(),
-    };
+  const feedsToSync = pickFeedsForSync(force);
+  const stateBefore = getNewsApiSyncState();
+  const nextRotation =
+    ((stateBefore.feedRotationIndex ?? 0) + FEEDS_PER_SYNC) % NEWSAPI_FEEDS.length;
 
-    try {
-      const articles = await fetchNewsApiFeed(feed);
-      const items = toFeedItems(articles);
-      feedStatus.found = items.length;
+  try {
+    const fetched = await Promise.allSettled(
+      feedsToSync.map(async (feed) => {
+        const articles = await fetchNewsApiFeed(feed);
+        return { feed, articles };
+      })
+    );
 
-      const source = virtualSource(feed);
-      const result = await processItemsWithSource(source, items, false, feed.categorySlug);
-      results.push(result);
-
-      feedStatus.imported = result.imported;
-      feedStatus.skipped = result.skipped;
-      feedStatus.duplicate = result.duplicate;
-      totalImported += result.imported;
-      totalSkipped += result.skipped;
-      totalFound += result.found;
-      totalDuplicate += result.duplicate;
-
-      if (result.errors.length > 0) {
-        feedStatus.error = result.errors.join("; ");
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "NewsAPI feed hatası";
-      feedStatus.error = msg;
-      globalError = msg;
-      results.push({
-        sourceId: `newsapi-${feed.id}`,
-        sourceName: feed.name,
+    const processJobs = fetched.map(async (entry, idx) => {
+      const feed = feedsToSync[idx];
+      const feedStatus: import("./sync-state").NewsApiFeedStatus = {
+        id: feed.id,
+        name: feed.name,
         found: 0,
         imported: 0,
         skipped: 0,
         duplicate: 0,
-        spam: 0,
-        errors: [msg],
-      });
-    }
+        lastFetchedAt: new Date().toISOString(),
+      };
 
-    feedStatuses.push(feedStatus);
-  }
+      if (entry.status === "rejected") {
+        const msg = entry.reason instanceof Error ? entry.reason.message : "NewsAPI feed hatası";
+        feedStatus.error = msg;
+        globalError = msg;
+        results.push({
+          sourceId: `newsapi-${feed.id}`,
+          sourceName: feed.name,
+          found: 0,
+          imported: 0,
+          skipped: 0,
+          duplicate: 0,
+          spam: 0,
+          errors: [msg],
+        });
+        return feedStatus;
+      }
 
-  const summary: PipelineSummary = {
-    processed: results.length,
-    imported: totalImported,
-    skipped: totalSkipped,
-    found: totalFound,
-    sources: results,
-    timestamp: new Date().toISOString(),
-  };
+      try {
+        const { articles } = entry.value;
+        const items = toFeedItems(articles);
+        feedStatus.found = items.length;
 
-  appendPipelineLog(summary, trigger === "manual" ? "manual" : "cron", undefined, "NewsAPI senkronizasyonu");
+        const source = virtualSource(feed);
+        const result = await processItemsWithSource(source, items, false, feed.categorySlug, {
+          fastTrack: true,
+          maxImport: MAX_IMPORT_PER_FEED,
+          skipEnrich: true,
+          concurrency: 4,
+        });
+        results.push(result);
 
-  saveNewsApiSyncState({
-    lastSyncAt: new Date().toISOString(),
-    lastSyncStatus: globalError && totalImported === 0 ? "error" : "success",
-    lastImported: totalImported,
-    lastFound: totalFound,
-    lastSkipped: totalSkipped,
-    lastDuplicate: totalDuplicate,
-    lastError: globalError,
-    feeds: feedStatuses,
-  });
+        feedStatus.imported = result.imported;
+        feedStatus.skipped = result.skipped;
+        feedStatus.duplicate = result.duplicate;
+        totalImported += result.imported;
+        totalSkipped += result.skipped;
+        totalFound += result.found;
+        totalDuplicate += result.duplicate;
 
-  if (totalImported > 0) {
-    revalidatePath("/");
-    for (const cat of categories) {
-      revalidatePath(`/kategori/${cat.slug}`);
+        if (result.errors.length > 0) {
+          feedStatus.error = result.errors.slice(0, 2).join("; ");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "NewsAPI işleme hatası";
+        feedStatus.error = msg;
+        globalError = msg;
+        results.push({
+          sourceId: `newsapi-${feed.id}`,
+          sourceName: feed.name,
+          found: 0,
+          imported: 0,
+          skipped: 0,
+          duplicate: 0,
+          spam: 0,
+          errors: [msg],
+        });
+      }
+
+      return feedStatus;
+    });
+
+    const statuses = await Promise.all(processJobs);
+    feedStatuses.push(...statuses);
+  } catch (err) {
+    globalError = err instanceof Error ? err.message : "NewsAPI senkronizasyon hatası";
+  } finally {
+    summary = {
+      processed: results.length,
+      imported: totalImported,
+      skipped: totalSkipped,
+      found: totalFound,
+      sources: results,
+      timestamp: new Date().toISOString(),
+    };
+
+    appendPipelineLog(summary, trigger === "manual" ? "manual" : "cron", undefined, "NewsAPI senkronizasyonu");
+
+    saveNewsApiSyncState({
+      lastSyncAt: new Date().toISOString(),
+      lastSyncStatus: globalError && totalImported === 0 ? "error" : "success",
+      lastImported: totalImported,
+      lastFound: totalFound,
+      lastSkipped: totalSkipped,
+      lastDuplicate: totalDuplicate,
+      lastError: globalError,
+      feeds: feedStatuses,
+      runningSince: null,
+      feedRotationIndex: nextRotation,
+    });
+
+    if (totalImported > 0) {
+      revalidatePath("/");
+      for (const cat of categories) {
+        revalidatePath(`/kategori/${cat.slug}`);
+      }
     }
   }
 

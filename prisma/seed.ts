@@ -1,4 +1,5 @@
 import { PrismaClient, UserRole, SourceType, ArticleStatus } from "@prisma/client";
+import { TURKISH_RSS_FEEDS } from "../src/data/turkish-rss-feeds";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -23,10 +24,13 @@ const categorySlugMap: Record<string, string> = {
   "7": "kultur-sanat",
 };
 
-const sources = [
-  { name: "Anadolu Ajansı", url: "https://www.aa.com.tr/tr/rss/default?cat=guncel", type: SourceType.RSS, trustScore: 0.95, categorySlug: "gundem" },
-  { name: "BBC Türkçe", url: "https://www.bbc.com/turkce/index.xml", type: SourceType.RSS, trustScore: 0.9, categorySlug: "dunya" },
-];
+const sources = TURKISH_RSS_FEEDS.map((feed) => ({
+  name: feed.name,
+  url: feed.url,
+  type: SourceType.RSS,
+  trustScore: feed.trustScore,
+  categorySlug: feed.categorySlug,
+}));
 
 const articles = [
   {
@@ -162,7 +166,7 @@ async function main() {
           type: src.type,
           trustScore: src.trustScore,
           categoryId,
-          fetchIntervalMinutes: 30,
+          fetchIntervalMinutes: 1,
           isActive: true,
         },
       });
