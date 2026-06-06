@@ -21,37 +21,38 @@ export default function TrendStrip({ articles }: TrendStripProps) {
           Popüler
         </span>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none">
         {articles.slice(0, 8).map((article, i) => (
           <Link
             key={article.id}
             href={`/haber/${article.slug}`}
-            className="news-card w-[140px] shrink-0 sm:w-[160px]"
+            className="news-card group w-[260px] shrink-0 snap-start sm:w-[280px]"
           >
-            <div className="relative aspect-[3/4] overflow-hidden">
+            <div className="relative aspect-[16/10] overflow-hidden bg-muted">
               <ArticleImage
                 src={article.image}
                 alt={article.title}
                 categorySlug={article.category?.slug ?? "gundem"}
                 priority={i < 2}
-                sizes="160px"
+                sizes="280px"
+                className="object-cover object-center group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              <span className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-xs font-black text-[var(--navy)]">
+              <span className="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-white shadow-md">
                 {i + 1}
               </span>
+            </div>
+
+            <div className="p-3">
               {article.category && (
-                <span
-                  className="absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
-                  style={{ backgroundColor: article.category.color }}
-                >
+                <span className="mb-1.5 inline-block text-[10px] font-bold uppercase tracking-wide text-primary">
                   {article.category.name}
                 </span>
               )}
+              <p className="font-headline line-clamp-3 text-sm font-bold leading-snug text-[var(--navy)] group-hover:text-primary">
+                {article.title}
+              </p>
             </div>
-            <p className="line-clamp-2 p-2.5 text-xs font-bold leading-snug text-[var(--navy)]">
-              {article.title}
-            </p>
           </Link>
         ))}
       </div>
