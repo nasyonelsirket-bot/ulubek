@@ -5,7 +5,7 @@ import { processWithLocalEngine } from "@/lib/ai/local-engine";
 import { categories } from "@/data/categories";
 import { slugify } from "@/lib/utils/slug";
 import { calcReadTime } from "@/lib/utils/content";
-import { resolveArticleImage, resolveArticleImageFast } from "./resolve-image";
+import { resolveArticleImage, resolveArticleImageQuick } from "./resolve-image";
 import { matchCategory, getCategoryIdBySlug } from "./category-matcher";
 import { isWithinLookbackDays } from "@/lib/ai/content-formatter";
 import { getSettings } from "@/lib/settings/store";
@@ -40,6 +40,7 @@ import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
 import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
 import { revalidatePath } from "next/cache";
+import { isTurkishContent } from "@/lib/utils/turkish-content";
 
 const parser = new Parser({
   timeout: 20000,
@@ -155,7 +156,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     maxSourcesPerRun = trigger === "cron" ? 16 : 50,
   } = options;
 
-  const fastTrack = fastTrackOpt ?? (trigger === "cron" && !bootstrap);
+  const fastTrack = fastTrackOpt ?? trigger !== "bootstrap";
 
   let sources = (await getActiveSourcesForPipeline()).filter((s) => s.isActive);
   if (sourceId) {
@@ -282,21 +283,31 @@ export async function processSingleSource(sourceId: string): Promise<PipelineRes
     sourceId,
     force: true,
     respectInterval: false,
+    fastTrack: true,
     trigger: "single",
   });
   return summary.sources[0] ?? null;
 }
 
 function extractRssImage(item: Record<string, unknown>): string | undefined {
+  const itunes = item["itunes:image"] as { $?: { href?: string } } | undefined;
+  if (itunes?.$?.href) return itunes.$.href;
+
+  const image = item.image as string | { url?: string } | undefined;
+  if (typeof image === "string" && image.startsWith("http")) return image;
+  if (image && typeof image === "object" && "url" in image && image.url) return image.url;
+
   const enclosure = item.enclosure as { url?: string; type?: string } | undefined;
   if (enclosure?.url && (enclosure.type?.startsWith("image/") || /\.(jpg|jpeg|png|webp)/i.test(enclosure.url))) {
     return enclosure.url;
   }
-  const media = item["media:content"] as { $?: { url?: string } } | undefined;
+  const media = item["media:content"] as { $?: { url?: string }; url?: string } | undefined;
   if (media?.$?.url) return media.$.url;
-  const thumb = item["media:thumbnail"] as { $?: { url?: string } } | undefined;
+  if (media?.url) return media.url;
+  const thumb = item["media:thumbnail"] as { $?: { url?: string }; url?: string } | undefined;
   if (thumb?.$?.url) return thumb.$.url;
-  const content = String(item.content || item["content:encoded"] || "");
+  if (thumb?.url) return thumb.url;
+  const content = String(item.content || item["content:encoded"] || item.summary || "");
   const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
   return match?.[1];
 }
@@ -518,6 +529,14 @@ export async function processItemsWithSource(
         return;
       }
 
+      if (!isTurkishContent(title, rawContent)) {
+        result.skipped++;
+        if (queueEntry) {
+          updateQueueItem(queueEntry.id, { status: "REJECTED", error: "Türkçe olmayan içerik" });
+        }
+        return;
+      }
+
       try {
         if (queueEntry) updateQueueItem(queueEntry.id, { status: "PENDING" });
 
@@ -559,7 +578,7 @@ export async function processItemsWithSource(
           matchCategory(title, rawContent, source.categoryId);
         const articleId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const imageResult = fastTrack
-          ? await resolveArticleImageFast({
+          ? await resolveArticleImageQuick({
               title: aiResult.title,
               categorySlug,
               sourceImageUrl: item.sourceImage,

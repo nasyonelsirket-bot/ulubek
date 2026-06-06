@@ -309,6 +309,9 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       const data = await readApiJson<{
         success?: boolean;
         error?: string;
+        started?: boolean;
+        async?: boolean;
+        message?: string;
         sourceName?: string;
         found?: number;
         itemsImported?: number;
@@ -317,14 +320,21 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         errors?: string[];
       }>(res);
 
-      if (!apiFailed(data, res)) {
-        const errText = data.errors?.length ? ` · Hata: ${data.errors.join(", ")}` : "";
-        setMessage(
-          `${data.sourceName}: ${data.found ?? 0} bulundu · ${data.itemsImported ?? 0} eklendi · ${data.skipped ?? 0} atlandı · ${data.duplicate ?? 0} kopya${errText}`
-        );
-      } else {
+      if (apiFailed(data, res)) {
         setMessage(data.error || data.errors?.join(", ") || "Tarama başarısız");
+        return;
       }
+
+      if (data.started || data.async) {
+        setMessage(data.message || "Kaynak taraması arka planda başladı.");
+        window.setTimeout(() => router.refresh(), 25000);
+        return;
+      }
+
+      const errText = data.errors?.length ? ` · Hata: ${data.errors.join(", ")}` : "";
+      setMessage(
+        `${data.sourceName}: ${data.found ?? 0} bulundu · ${data.itemsImported ?? 0} eklendi · ${data.skipped ?? 0} atlandı · ${data.duplicate ?? 0} kopya${errText}`
+      );
       router.refresh();
     } finally {
       setLoading(null);

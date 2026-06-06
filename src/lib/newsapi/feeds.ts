@@ -45,11 +45,11 @@ export const NEWSAPI_FEEDS: NewsApiFeed[] = [
     pageSize: 8,
   },
   {
-    id: "world",
-    name: "NewsAPI — Dünya",
-    sources: "bbc-news,reuters,associated-press,al-jazeera-english",
+    id: "tr-dunya",
+    name: "NewsAPI — Türkiye Dünya",
+    country: "tr",
     categorySlug: "dunya",
-    pageSize: 10,
+    pageSize: 8,
   },
 ];
 

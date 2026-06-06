@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest } from "next/server";
 import {
   adminErr,
@@ -19,13 +20,21 @@ export async function POST(
     if (unauthorized) return unauthorized;
 
     const { id } = await params;
-    const result = await fetchSingleSource(id);
 
-    if (!result.success) {
-      return adminErr(result.error || "Tarama başarısız", 404);
-    }
+    after(async () => {
+      try {
+        await fetchSingleSource(id);
+      } catch (err) {
+        console.error("[admin/sources/[id]/fetch background]", err);
+      }
+    });
 
-    return adminOk(result);
+    return adminOk({
+      started: true,
+      async: true,
+      sourceId: id,
+      message: "Kaynak taraması arka planda başlatıldı.",
+    });
   } catch (err) {
     console.error("[admin/sources/[id]/fetch POST]", err);
     return adminErr(toErrorMessage(err));

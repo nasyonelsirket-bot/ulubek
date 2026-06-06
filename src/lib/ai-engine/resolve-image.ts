@@ -1,5 +1,10 @@
 import { generateNewsImage } from "./image";
-import { createNewsCovers, bufferFromSource } from "./image-optimizer";
+import {
+  createNewsCovers,
+  createNewsCoversFromBufferLite,
+  createNewsCoversFromUrl,
+  bufferFromSource,
+} from "./image-optimizer";
 import { fetchStockImage } from "./stock-image";
 import { generatePlaceholderCover } from "./placeholder-image";
 import { getSettings } from "@/lib/settings/store";
@@ -45,26 +50,78 @@ function buildCoverInput(input: ResolveImageInput): CoverComposeInput {
   };
 }
 
-/** NewsAPI hızlı yol — kaynak görseli doğrudan kullanır, işleme yapmaz. */
-export async function resolveArticleImageFast(
+/** Hızlı pipeline — görseli /api/media/ altına kaydeder (stok veya kaynak). */
+export async function resolveArticleImageQuick(
   input: ResolveImageInput
 ): Promise<ImageResolutionResult> {
+  const fileId = input.articleId ?? `img-${Date.now()}`;
+  const coverInput = buildCoverInput(input);
+
   const sourceUrl = input.sourceImageUrl?.trim();
   if (sourceUrl) {
-    return {
-      url: sourceUrl,
-      urlSquare: sourceUrl,
-      urlStory: sourceUrl,
-      prompt: sourceUrl,
-      provider: "source",
-    };
+    try {
+      const covers = await Promise.race([
+        createNewsCoversFromUrl(sourceUrl, fileId, coverInput),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]);
+      if (covers) {
+        return {
+          url: covers.web,
+          urlSquare: covers.square,
+          urlStory: covers.story,
+          prompt: sourceUrl,
+          provider: "source",
+        };
+      }
+    } catch {
+      /* stok/placeholder */
+    }
   }
+
+  const stockUrl = await fetchStockImage(input.categorySlug, input.title);
+  if (stockUrl) {
+    const buf = await bufferFromSource(stockUrl);
+    if (buf) {
+      const covers = await createNewsCoversFromBufferLite(buf, `stock-${fileId}`, coverInput);
+      if (covers) {
+        return {
+          url: covers.web,
+          urlSquare: covers.square,
+          urlStory: covers.story,
+          prompt: `stock:${input.categorySlug}`,
+          provider: "stock",
+        };
+      }
+    }
+  }
+
   const placeholder = generatePlaceholderCover(input.title, input.categorySlug);
+  const placeholderBuffer = await bufferFromSource(placeholder);
+  if (placeholderBuffer) {
+    const covers = await createNewsCoversFromBufferLite(placeholderBuffer, `ph-${fileId}`, coverInput);
+    if (covers) {
+      return {
+        url: covers.web,
+        urlSquare: covers.square,
+        urlStory: covers.story,
+        prompt: "placeholder-branded",
+        provider: "placeholder",
+      };
+    }
+  }
+
   return {
     url: placeholder,
     prompt: "placeholder",
     provider: "placeholder",
   };
+}
+
+/** @deprecated resolveArticleImageQuick kullanın */
+export async function resolveArticleImageFast(
+  input: ResolveImageInput
+): Promise<ImageResolutionResult> {
+  return resolveArticleImageQuick(input);
 }
 
 export async function resolveArticleImage(input: ResolveImageInput): Promise<ImageResolutionResult> {

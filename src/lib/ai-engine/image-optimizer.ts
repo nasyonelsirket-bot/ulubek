@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { getRuntimeDir } from "@/lib/runtime/paths";
 import {
   composeAllCoverVariants,
   type CoverComposeInput,
@@ -8,8 +9,11 @@ import {
 import { scoreImageDimensions, MIN_IMAGE_QUALITY_SCORE } from "@/lib/utils/image-quality";
 import { assessBlurVariance, MIN_BLUR_VARIANCE } from "@/lib/utils/image-quality";
 
-const IMAGES_DIR = path.join(process.cwd(), "data", "runtime", "images");
 const USER_AGENT = "UlubekMedya-ImageBot/2.0 (+https://ulubekmedya.com)";
+
+function getImagesDir(): string {
+  return path.join(getRuntimeDir(), "images");
+}
 
 export interface CoverUrls {
   web: string;
@@ -18,7 +22,7 @@ export interface CoverUrls {
 }
 
 function ensureDir() {
-  mkdirSync(IMAGES_DIR, { recursive: true });
+  mkdirSync(getImagesDir(), { recursive: true });
 }
 
 function isValidImageUrl(url: string): boolean {
@@ -59,9 +63,9 @@ function saveCoverVariants(
   const squareFile = `${id}-square.webp`;
   const storyFile = `${id}-story.webp`;
 
-  writeFileSync(path.join(IMAGES_DIR, webFile), variants.web);
-  writeFileSync(path.join(IMAGES_DIR, squareFile), variants.square);
-  writeFileSync(path.join(IMAGES_DIR, storyFile), variants.story);
+  writeFileSync(path.join(getImagesDir(), webFile), variants.web);
+  writeFileSync(path.join(getImagesDir(), squareFile), variants.square);
+  writeFileSync(path.join(getImagesDir(), storyFile), variants.story);
 
   return {
     web: `/api/media/${webFile}`,
@@ -94,6 +98,20 @@ export async function bufferFromSource(source: string): Promise<Buffer | null> {
     }
 
     return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+export async function createNewsCoversFromBufferLite(
+  buffer: Buffer,
+  fileId: string,
+  coverInput: CoverComposeInput
+): Promise<CoverUrls | null> {
+  try {
+    if (buffer.length < 2000) return null;
+    const variants = await composeAllCoverVariants(buffer, coverInput, sanitizeId(fileId));
+    return saveCoverVariants(variants);
   } catch {
     return null;
   }

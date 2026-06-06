@@ -49,7 +49,7 @@ export const TURKISH_RSS_FEEDS: TurkishRssFeed[] = [
   { name: "Google News — Son Dakika", url: "https://news.google.com/rss/search?q=son+dakika+t%C3%BCrkiye&hl=tr&gl=TR&ceid=TR:tr", categorySlug: "gundem", trustScore: 0.84 },
   { name: "Google News — Ekonomi", url: "https://news.google.com/rss/search?q=t%C3%BCrkiye+ekonomi&hl=tr&gl=TR&ceid=TR:tr", categorySlug: "ekonomi", trustScore: 0.84 },
   { name: "Google News — Spor", url: "https://news.google.com/rss/search?q=t%C3%BCrkiye+spor&hl=tr&gl=TR&ceid=TR:tr", categorySlug: "spor", trustScore: 0.84 },
-  { name: "Google News — Teknoloji", url: "https://news.google.com/rss/search?q=teknoloji&hl=tr&gl=TR&ceid=TR:tr", categorySlug: "teknoloji", trustScore: 0.83 },
+  { name: "Google News — Teknoloji", url: "https://news.google.com/rss/search?q=t%C3%BCrkiye+teknoloji&hl=tr&gl=TR&ceid=TR:tr", categorySlug: "teknoloji", trustScore: 0.83 },
 
   // Resmi / bakanlık RSS
   { name: "T.C. İletişim Başkanlığı", url: "https://www.iletisim.gov.tr/rss", categorySlug: "gundem", trustScore: 0.98 },
