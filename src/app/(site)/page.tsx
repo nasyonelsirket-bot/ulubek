@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import HeroSlider from "@/components/home/HeroSlider";
-import HeroTopTrio from "@/components/home/HeroTopTrio";
-import HeroSidebarList from "@/components/home/HeroSidebarList";
-import HeroMarketsBar from "@/components/home/HeroMarketsBar";
+import YouthHero from "@/components/home/YouthHero";
+import TrendStrip from "@/components/home/TrendStrip";
 import GozeKacmasinBlock from "@/components/home/GozeKacmasinBlock";
 import InfiniteNewsFeed from "@/components/home/InfiniteNewsFeed";
 import CategoryBlock from "@/components/home/CategoryBlock";
+import NewsSectionHead from "@/components/home/NewsSectionHead";
 import {
   getFeaturedArticles,
   getPublishedArticlesPage,
@@ -68,9 +67,9 @@ export default async function HomePage() {
     allFeatured = articles.map(mapArticle);
   }
 
-  const topTrio = allFeatured.slice(0, 3);
-  const sliderSlides = allFeatured.slice(3, 9);
-  const heroIds = [...topTrio, ...sliderSlides].map((a) => a.id);
+  const lead = allFeatured[0];
+  const secondary = allFeatured.slice(1, 4);
+  const heroIds = allFeatured.slice(0, 6).map((a) => a.id);
 
   const breakingItems = breaking.slice(0, 10).map(mapArticle);
   const sidebarItems =
@@ -86,33 +85,24 @@ export default async function HomePage() {
     excludeIds
   );
 
-  const gozeKacmasinArticles =
+  const trending =
+    trending24.length > 0
+      ? trending24.map(mapArticle)
+      : allFeatured.slice(1, 9);
+
+  const editorPicks =
     trending24.length > 0
       ? trending24.map(mapArticle)
       : (await getPublishedArticlesPage(1, 7, excludeIds)).articles.map(mapArticle);
 
   return (
-    <div className="mx-auto max-w-[1280px] px-3 pt-3 pb-0">
-      {/* Hero — Hürriyet tarzı */}
-      <section className="mb-6">
-        <HeroTopTrio items={topTrio} />
+    <div className="safe-bottom mx-auto max-w-6xl px-4 pt-4 md:px-6 md:pt-6">
+      <YouthHero lead={lead} secondary={secondary} sidebar={sidebarItems} />
 
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:gap-3">
-          <div className="lg:col-span-8">
-            <HeroSlider slides={sliderSlides.length > 0 ? sliderSlides : allFeatured.slice(0, 6)} />
-          </div>
-          <div className="lg:col-span-4">
-            <HeroSidebarList items={sidebarItems} title="Son Dakika" />
-          </div>
-        </div>
+      <TrendStrip articles={trending} />
 
-        <HeroMarketsBar />
-      </section>
+      <GozeKacmasinBlock articles={editorPicks} />
 
-      {/* Gözden Kaçmasın */}
-      <GozeKacmasinBlock articles={gozeKacmasinArticles} />
-
-      {/* Kategori gridleri — 4 sütun */}
       {HOME_CATEGORY_SLUGS.map((slug, i) => {
         const cat = categories.find((c) => c.slug === slug);
         const articles = categoryResults[i] ?? [];
@@ -128,11 +118,8 @@ export default async function HomePage() {
         );
       })}
 
-      {/* Haber akışı */}
-      <section className="mb-6 mt-2">
-        <div className="mb-3 flex items-center justify-between border-b-2 border-[var(--navy)] pb-2">
-          <h2 className="font-headline text-lg font-bold text-[var(--navy)]">Haber Akışı</h2>
-        </div>
+      <section className="mb-10">
+        <NewsSectionHead title="Akış" badge="Yeni" />
         <InfiniteNewsFeed
           initialArticles={feedInitial.map(mapArticle)}
           initialHasMore={feedHasMore}

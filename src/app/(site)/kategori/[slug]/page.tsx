@@ -42,30 +42,32 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   }));
 
   return (
-    <div className="mx-auto max-w-[1400px] px-3 py-5">
-      <div className="portal-section-head mb-6 flex items-center gap-3">
+    <div className="safe-bottom mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <div className="mb-8 flex items-center gap-4">
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-white"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-extrabold text-white shadow-lg"
           style={{ backgroundColor: category.color }}
         >
           {category.name[0]}
         </div>
-        <div>
-          <h1 className="font-headline text-2xl font-bold text-[var(--navy)] md:text-3xl">{category.name}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-headline text-2xl font-extrabold text-[var(--navy)] md:text-3xl">{category.name}</h1>
           {category.description && (
-            <p className="mt-0.5 text-sm text-muted-foreground">{category.description}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{category.description}</p>
           )}
         </div>
-        <span className="ml-auto text-sm text-muted-foreground">{articles.length} haber</span>
+        <span className="hidden shrink-0 rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-muted-foreground sm:block">
+          {articles.length} haber
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="lg:col-span-9">
           {articles.length > 0 ? (
             <ArticleGrid articles={mapped} columns={3} />
           ) : (
-            <div className="rounded-lg border border-border bg-white p-12 text-center">
-              <p className="text-muted-foreground">Bu kategoride henüz haber bulunmuyor.</p>
+            <div className="news-card p-12 text-center">
+              <p className="text-muted-foreground">Bu kategoride henüz haber yok — birazdan burada olur.</p>
             </div>
           )}
         </div>

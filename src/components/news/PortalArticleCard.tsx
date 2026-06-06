@@ -10,6 +10,7 @@ export interface PortalArticleItem {
   excerpt?: string | null;
   image?: string | null;
   publishedAt: string | Date;
+  breaking?: boolean;
   category?: { name: string; slug: string; color: string };
 }
 
@@ -33,7 +34,7 @@ export default function PortalArticleCard({
     return (
       <article
         className={cn(
-          "group flex gap-3 border-b border-border py-3 transition-colors hover:bg-secondary/40",
+          "group flex gap-3 border-b border-border/60 py-3 transition-colors hover:bg-secondary/30",
           className
         )}
       >
@@ -64,12 +65,7 @@ export default function PortalArticleCard({
   }
 
   return (
-    <article
-      className={cn(
-        "portal-card group overflow-hidden border border-border bg-white transition-shadow hover:shadow-md",
-        className
-      )}
-    >
+    <article className={cn("news-card group overflow-hidden", className)}>
       <Link href={`/haber/${article.slug}`} className={cn("relative block w-full overflow-hidden bg-muted", aspect)}>
         <ArticleImage
           src={article.image}
@@ -79,19 +75,22 @@ export default function PortalArticleCard({
           sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
         />
         {article.category && variant === "compact" && (
-          <span className="absolute left-0 top-0 bg-primary px-2 py-0.5 text-[9px] font-bold uppercase text-white">
+          <span
+            className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+            style={{ backgroundColor: article.category.color }}
+          >
             {article.category.name}
           </span>
         )}
       </Link>
-      <div className="p-2.5 md:p-3">
+      <div className="p-3">
         {article.category && variant !== "compact" && (
-          <span className="mb-1.5 inline-block bg-primary px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+          <span className="mb-1.5 inline-block text-[10px] font-bold uppercase text-primary">
             {article.category.name}
           </span>
         )}
         <Link href={`/haber/${article.slug}`}>
-          <h3 className="font-headline line-clamp-3 text-[15px] font-bold leading-snug text-[var(--navy)] group-hover:text-primary md:text-base">
+          <h3 className="font-headline line-clamp-3 text-sm font-bold leading-snug text-[var(--navy)] group-hover:text-primary md:text-[15px]">
             {article.title}
           </h3>
         </Link>

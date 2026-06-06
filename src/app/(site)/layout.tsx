@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/layout/SiteHeader";
 import Footer from "@/components/layout/Footer";
+import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import LiveNewsProvider from "@/components/live/LiveNewsProvider";
 import ConditionalBreakingTicker from "@/components/live/ConditionalBreakingTicker";
 import LiveBreakingAlert from "@/components/live/LiveBreakingAlert";
@@ -43,6 +44,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <LiveBreakingAlert />
       <main className="flex-1">{children}</main>
       <Footer />
+      <MobileBottomNav />
     </LiveNewsProvider>
   );
 }

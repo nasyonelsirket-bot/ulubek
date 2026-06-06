@@ -41,7 +41,7 @@ export default function HeroSlider({ slides, compact = false }: HeroSliderProps)
   const categorySlug = slide.category?.slug ?? "gundem";
 
   return (
-    <div className="group relative overflow-hidden border border-border bg-black">
+    <div className="group relative overflow-hidden rounded-sm border border-[#c9a962]/20 bg-black">
       <Link
         href={`/haber/${slide.slug}`}
         className="relative block aspect-[16/10] w-full lg:aspect-[16/9]"
@@ -57,18 +57,16 @@ export default function HeroSlider({ slides, compact = false }: HeroSliderProps)
         <div className={compact ? "absolute bottom-0 left-0 right-0 p-4" : "absolute bottom-0 left-0 right-0 p-4 md:p-5"}>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {slide.breaking && (
-              <span className="bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                Son Dakika
-              </span>
+              <span className="lux-category-pill text-[9px]">Son Dakika</span>
             )}
             {slide.category && (
-              <span className="bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+              <span className="rounded-sm border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/90">
                 {slide.category.name}
               </span>
             )}
-            <RelativeTime date={slide.publishedAt} className="text-[11px] text-white/70" />
+            <RelativeTime date={slide.publishedAt} className="text-[11px] text-[#c9a962]/80" />
           </div>
-          <h2 className="font-headline line-clamp-3 bg-primary/90 px-3 py-2 text-lg font-bold leading-tight text-white md:text-2xl lg:text-[28px]">
+          <h2 className="font-headline line-clamp-3 text-lg font-semibold leading-tight text-white md:text-2xl lg:text-[1.75rem]">
             {slide.title}
           </h2>
           {!compact && slide.excerpt && (
@@ -101,7 +99,7 @@ export default function HeroSlider({ slides, compact = false }: HeroSliderProps)
                 key={i}
                 type="button"
                 onClick={() => setCurrent(i)}
-                className={`h-1 rounded-full transition-all ${i === current ? "w-5 bg-white" : "w-1 bg-white/40"}`}
+                className={`h-1 rounded-full transition-all ${i === current ? "w-5 bg-[#c9a962]" : "w-1 bg-white/30"}`}
                 aria-label={`Slayt ${i + 1}`}
               />
             ))}

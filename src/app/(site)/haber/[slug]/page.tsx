@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Clock, User } from "lucide-react";
+import { Clock } from "lucide-react";
 import {
   getArticleBySlug,
   getRelatedArticles,
@@ -16,8 +16,6 @@ import JsonLd from "@/components/seo/JsonLd";
 import ShareButtons from "@/components/news/ShareButtons";
 import RelatedArticles from "@/components/news/RelatedArticles";
 import NextArticle from "@/components/news/NextArticle";
-import TableOfContents from "@/components/news/TableOfContents";
-import AgendaBox from "@/components/home/AgendaBox";
 import ArticleImage from "@/components/news/ArticleImage";
 
 interface ArticlePageProps {
@@ -60,7 +58,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const seoInput = toSeoInput(article);
   const tags = seoInput.tags;
   const jsonLd = buildNewsArticleSchema(seoInput);
-  const authorName = "Ulubek Medya Editör";
   const articleHtml = enrichArticleHtml(article.content);
   const viewCount = estimateViewCount(article.id, article.publishedAt);
   const categorySlug = article.category.slug;
@@ -69,139 +66,95 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     <>
       <JsonLd data={jsonLd} />
 
-      <div className="relative w-full overflow-hidden bg-black md:max-h-[560px]">
-        <div className="relative aspect-[4/3] min-h-[45vh] w-full md:aspect-[21/9] md:min-h-[360px]">
-          <ArticleImage
-            src={article.image}
-            alt={article.title}
-            categorySlug={categorySlug}
-            priority
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent md:from-background/80 md:to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 p-4 md:hidden">
-            <span
-              className="mb-2 inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-              style={{ backgroundColor: article.category.color }}
-            >
-              {article.category.name}
-            </span>
-            <h1 className="font-headline line-clamp-3 text-2xl font-black leading-tight text-white">
-              {article.title}
-            </h1>
+      <article className="safe-bottom mx-auto max-w-3xl px-4 pb-10 pt-0 md:max-w-4xl md:px-6 md:pt-4">
+        {/* Kapak görseli */}
+        <div className="relative -mx-4 mb-6 overflow-hidden md:mx-0 md:rounded-2xl">
+          <div className="relative aspect-[4/3] w-full md:aspect-[16/9]">
+            <ArticleImage
+              src={article.image}
+              alt={article.title}
+              categorySlug={categorySlug}
+              priority
+              sizes="100vw"
+            />
           </div>
         </div>
-      </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-4 md:py-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          <article className="lg:col-span-8">
-            <div className="mb-4 hidden flex-wrap items-center gap-3 md:flex">
-              <span
-                className="rounded px-3 py-1 text-xs font-bold uppercase tracking-wider text-white"
-                style={{ backgroundColor: article.category.color }}
-              >
-                {article.category.name}
-              </span>
-              {article.breaking && (
-                <span className="rounded bg-primary px-2 py-0.5 text-xs font-bold uppercase text-primary-foreground">
-                  Son Dakika
-                </span>
-              )}
-            </div>
-
-            <h1 className="font-headline hidden text-3xl font-black leading-tight text-foreground md:block md:text-5xl md:leading-[1.15]">
-              {article.title}
-            </h1>
-
-            {article.excerpt && (
-              <div className="mt-4 border-l-4 border-primary pl-4 md:mt-5 md:pl-5">
-                <p className="text-base font-medium leading-[1.85] text-foreground/90 md:text-lg">{article.excerpt}</p>
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-wrap items-center gap-4 border-y border-border py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  <User className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{authorName}</p>
-                  {article.source && (
-                    <p className="text-xs text-muted-foreground">Kaynak: {article.source.name}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                <time dateTime={article.publishedAt.toISOString()}>
-                  {formatDateTime(article.publishedAt.toISOString())}
-                </time>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {article.readTime} dk okuma
-                </span>
-                <span>{formatViewCount(viewCount)} okunma</span>
-              </div>
-            </div>
-
-            <div
-              className="prose-content mt-6 max-w-none text-base md:mt-8 md:text-lg"
-              dangerouslySetInnerHTML={{ __html: articleHtml }}
-            />
-
-            {tags.length > 0 && (
-              <div className="mt-8 flex flex-wrap gap-2 border-t border-border pt-6">
-                {tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-secondary px-3 py-1 text-sm text-muted-foreground">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-8 border-t border-border pt-6">
-              <ShareButtons title={article.title} url={`${siteUrl}/haber/${article.slug}`} />
-            </div>
-
-            {nextArticle && (
-              <NextArticle
-                article={{
-                  title: nextArticle.title,
-                  slug: nextArticle.slug,
-                  image: nextArticle.image,
-                  category: nextArticle.category,
-                }}
-              />
-            )}
-
-            <RelatedArticles
-              articles={relatedArticles.map((a) => ({
-                id: a.id,
-                title: a.title,
-                slug: a.slug,
-                excerpt: a.excerpt,
-                image: a.image,
-                publishedAt: a.publishedAt,
-                readTime: a.readTime,
-                category: a.category,
-              }))}
-            />
-          </article>
-
-          <aside className="hidden space-y-6 lg:col-span-4 lg:block">
-            <TableOfContents content={articleHtml} />
-            <AgendaBox
-              items={relatedArticles.slice(0, 5).map((a) => ({
-                id: a.id,
-                title: a.title,
-                slug: a.slug,
-                publishedAt: a.publishedAt,
-                category: { name: a.category.name, color: a.category.color },
-              }))}
-            />
-          </aside>
+        {/* Meta */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span
+            className="rounded-full px-3 py-1 text-xs font-bold text-white"
+            style={{ backgroundColor: article.category.color }}
+          >
+            {article.category.name}
+          </span>
+          {article.breaking && (
+            <span className="news-badge news-badge-live">Son Dakika</span>
+          )}
         </div>
-      </div>
+
+        <h1 className="font-headline text-2xl font-extrabold leading-[1.15] text-[var(--navy)] md:text-4xl md:leading-[1.12]">
+          {article.title}
+        </h1>
+
+        {article.excerpt && (
+          <p className="mt-4 text-lg font-medium leading-relaxed text-muted-foreground">{article.excerpt}</p>
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-y border-border py-4 text-sm text-muted-foreground">
+          <time dateTime={article.publishedAt.toISOString()}>{formatDateTime(article.publishedAt.toISOString())}</time>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            {article.readTime} dk
+          </span>
+          <span>{formatViewCount(viewCount)} okunma</span>
+          {article.source && <span>Kaynak: {article.source.name}</span>}
+        </div>
+
+        <div
+          className="prose-content mt-6 max-w-none"
+          dangerouslySetInnerHTML={{ __html: articleHtml }}
+        />
+
+        {tags.length > 0 && (
+          <div className="mt-8 flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-secondary px-3 py-1.5 text-sm font-medium text-muted-foreground">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 rounded-2xl border border-border bg-secondary/50 p-5">
+          <p className="mb-3 text-sm font-bold text-[var(--navy)]">Paylaş</p>
+          <ShareButtons title={article.title} url={`${siteUrl}/haber/${article.slug}`} />
+        </div>
+
+        {nextArticle && (
+          <NextArticle
+            article={{
+              title: nextArticle.title,
+              slug: nextArticle.slug,
+              image: nextArticle.image,
+              category: nextArticle.category,
+            }}
+          />
+        )}
+
+        <RelatedArticles
+          articles={relatedArticles.map((a) => ({
+            id: a.id,
+            title: a.title,
+            slug: a.slug,
+            excerpt: a.excerpt,
+            image: a.image,
+            publishedAt: a.publishedAt,
+            readTime: a.readTime,
+            category: a.category,
+          }))}
+        />
+      </article>
     </>
   );
 }

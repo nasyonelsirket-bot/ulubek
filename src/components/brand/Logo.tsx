@@ -62,7 +62,7 @@ export default function Logo({
       height={size.height}
       className={cn(
         variant === "header" ? "h-full w-auto max-w-none object-contain" : size.className,
-        opaqueWarning && variant === "header" && "logo-blend-fix",
+        opaqueWarning && variant === "header" && "logo-blend-fix brightness-110",
         className
       )}
       style={{ objectFit: "contain" }}

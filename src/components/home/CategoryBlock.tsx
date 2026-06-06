@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { PortalArticleGrid } from "@/components/news/PortalArticleCard";
+import NewsSectionHead from "@/components/home/NewsSectionHead";
 
 interface ArticleItem {
   id: string;
@@ -19,17 +19,12 @@ interface CategoryBlockProps {
   articles: ArticleItem[];
 }
 
-export default function CategoryBlock({ name, slug, color, articles }: CategoryBlockProps) {
+export default function CategoryBlock({ name, slug, articles }: Omit<CategoryBlockProps, "color"> & { color?: string }) {
   if (articles.length === 0) return null;
 
   return (
-    <section className="mb-8">
-      <div className="mb-3 flex items-center justify-between border-b-2 pb-2" style={{ borderColor: color }}>
-        <h2 className="font-headline text-lg font-bold text-[var(--navy)]">{name}</h2>
-        <Link href={`/kategori/${slug}`} className="text-xs font-bold uppercase hover:underline" style={{ color }}>
-          Tümünü Gör →
-        </Link>
-      </div>
+    <section className="mb-10">
+      <NewsSectionHead title={name} href={`/kategori/${slug}`} />
       <PortalArticleGrid articles={articles.slice(0, 8)} columns={4} variant="compact" priorityCount={4} />
     </section>
   );

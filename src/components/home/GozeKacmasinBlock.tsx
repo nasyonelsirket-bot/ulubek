@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ArticleImage from "@/components/news/ArticleImage";
 import { PortalArticleGrid } from "@/components/news/PortalArticleCard";
+import NewsSectionHead from "@/components/home/NewsSectionHead";
 import type { PortalArticleItem } from "@/components/news/PortalArticleCard";
 
 interface GozeKacmasinBlockProps {
@@ -14,44 +15,38 @@ export default function GozeKacmasinBlock({ articles }: GozeKacmasinBlockProps) 
   const categorySlug = lead.category?.slug ?? "gundem";
 
   return (
-    <section className="mb-8">
-      <div className="mb-3 flex items-center justify-between border-b-2 border-[var(--navy)] pb-2">
-        <h2 className="font-headline text-lg font-bold text-[var(--navy)]">Gözden Kaçmasın</h2>
-        <Link href="/arama" className="text-xs font-bold uppercase text-primary hover:underline">
-          Tümünü Gör →
-        </Link>
-      </div>
+    <section className="mb-10">
+      <NewsSectionHead title="Kaçırma" href="/arama" linkLabel="Hepsi" badge="Hot" />
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <article className="group overflow-hidden border border-border bg-white lg:col-span-5">
-          <Link href={`/haber/${lead.slug}`} className="relative block aspect-[4/3] w-full overflow-hidden">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <article className="news-card group overflow-hidden lg:row-span-2">
+          <Link href={`/haber/${lead.slug}`} className="relative block aspect-[4/3] overflow-hidden lg:aspect-auto lg:h-full lg:min-h-[320px]">
             <ArticleImage
               src={lead.image}
               alt={lead.title}
               categorySlug={categorySlug}
               priority
-              sizes="(max-width:1024px) 100vw, 500px"
+              sizes="(max-width:1024px) 100vw, 50vw"
             />
-          </Link>
-          <div className="p-4">
-            {lead.category && (
-              <span className="mb-2 inline-block bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                {lead.category.name}
-              </span>
-            )}
-            <Link href={`/haber/${lead.slug}`}>
-              <h3 className="font-headline text-xl font-bold leading-tight text-[var(--navy)] group-hover:text-primary md:text-2xl">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            <div className="absolute bottom-0 p-5">
+              {lead.category && (
+                <span
+                  className="mb-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white"
+                  style={{ backgroundColor: lead.category.color }}
+                >
+                  {lead.category.name}
+                </span>
+              )}
+              <h3 className="font-headline text-xl font-extrabold leading-tight text-white md:text-2xl">
                 {lead.title}
               </h3>
-            </Link>
-            {lead.excerpt && (
-              <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{lead.excerpt}</p>
-            )}
-          </div>
+            </div>
+          </Link>
         </article>
 
-        <div className="lg:col-span-7">
-          <PortalArticleGrid articles={rest.slice(0, 6)} columns={2} variant="compact" priorityCount={2} />
+        <div className="flex flex-col gap-3">
+          <PortalArticleGrid articles={rest.slice(0, 4)} columns={2} variant="compact" priorityCount={2} />
         </div>
       </div>
     </section>

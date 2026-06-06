@@ -7,22 +7,25 @@ export default async function Footer() {
   const categories = await getAllCategories();
 
   return (
-    <footer className="mt-auto border-t border-gray-200 bg-gray-900 text-gray-300">
-      <div className="mx-auto max-w-[1280px] px-4 py-12">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <Logo variant="footer" linked />
-            <p className="mt-4 text-sm leading-relaxed text-gray-400">
-              Türkiye ve dünyadan en güncel, tarafsız ve güvenilir haberleri okuyucularımıza ulaştırıyoruz.
-            </p>
-          </div>
+    <footer className="mt-auto border-t border-border bg-white safe-bottom">
+      <div className="mx-auto max-w-6xl px-4 py-10 md:px-6">
+        <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Logo variant="footer" linked />
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Gençlerin haber adresi. Hızlı, net, güvenilir — Türkiye&apos;den ve dünyadan son dakika.
+          </p>
+        </div>
 
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-3">
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Kategoriler</h3>
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Kategoriler</h3>
             <ul className="space-y-2">
-              {categories.slice(0, 5).map((category) => (
+              {categories.slice(0, 6).map((category) => (
                 <li key={category.id}>
-                  <Link href={`/kategori/${category.slug}`} className="text-sm transition-colors hover:text-red-400">
+                  <Link
+                    href={`/kategori/${category.slug}`}
+                    className="text-sm font-medium text-foreground transition-colors hover:text-primary"
+                  >
                     {category.name}
                   </Link>
                 </li>
@@ -31,32 +34,36 @@ export default async function Footer() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Kurumsal</h3>
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Site</h3>
             <ul className="space-y-2">
-              <li><Link href="/hakkimizda" className="text-sm transition-colors hover:text-red-400">Hakkımızda</Link></li>
-              <li><Link href="/iletisim" className="text-sm transition-colors hover:text-red-400">İletişim</Link></li>
-              <li><Link href="/gizlilik" className="text-sm transition-colors hover:text-red-400">Gizlilik Politikası</Link></li>
-              <li><Link href="/kullanim-kosullari" className="text-sm transition-colors hover:text-red-400">Kullanım Koşulları</Link></li>
+              <li><Link href="/hakkimizda" className="text-sm font-medium hover:text-primary">Hakkımızda</Link></li>
+              <li><Link href="/iletisim" className="text-sm font-medium hover:text-primary">İletişim</Link></li>
+              <li><Link href="/gizlilik" className="text-sm font-medium hover:text-primary">Gizlilik</Link></li>
+              <li><Link href="/kullanim-kosullari" className="text-sm font-medium hover:text-primary">Koşullar</Link></li>
             </ul>
           </div>
 
-          <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Bizi Takip Edin</h3>
-            <div className="flex gap-3">
-              {["X", "Facebook", "Instagram", "YouTube"].map((social) => (
-                <a key={social} href="#" aria-label={social} className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 text-sm font-bold transition-colors hover:bg-red-600 hover:text-white">
-                  {social[0]}
+          <div className="col-span-2 md:col-span-1">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Takip Et</h3>
+            <div className="flex gap-2">
+              {["X", "IG", "YT", "TT"].map((s) => (
+                <a
+                  key={s}
+                  href="#"
+                  aria-label={s}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-bold transition-colors hover:bg-primary hover:text-white"
+                >
+                  {s}
                 </a>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-gray-800 pt-6 text-center text-sm text-gray-500">
-          <p suppressHydrationWarning>&copy; {currentYear} Ulubek Medya. Tüm hakları saklıdır.</p>
-        </div>
+        <p className="mt-8 border-t border-border pt-6 text-center text-xs text-muted-foreground" suppressHydrationWarning>
+          © {currentYear} Ulubek Medya — Haber burada başlar.
+        </p>
       </div>
-      <div className="h-1.5 bg-[#f5a623]" aria-hidden />
     </footer>
   );
 }
