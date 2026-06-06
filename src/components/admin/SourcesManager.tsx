@@ -353,6 +353,8 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
         started?: boolean;
         async?: boolean;
         message?: string;
+        phase?: number;
+        phaseLabel?: string;
         rssSourcesRegistered?: number;
         imported?: number;
         created?: number;
@@ -369,10 +371,10 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       if (data.started || data.async) {
         setMessage(
           data.message ||
-            `Tarama arka planda başladı${data.rssSourcesRegistered ? ` (${data.rssSourcesRegistered} RSS kaynağı hazır)` : ""}. Sayfa otomatik yenilenecek…`
+            `${data.phaseLabel ?? "Tarama"} arka planda başladı. Sayfa birkaç dakika içinde yenilenecek…`
         );
-        window.setTimeout(() => router.refresh(), 20000);
-        window.setTimeout(() => router.refresh(), 60000);
+        window.setTimeout(() => router.refresh(), 30000);
+        window.setTimeout(() => router.refresh(), 90000);
         return;
       }
       const dup = data.sources?.reduce((n: number, s: { duplicate?: number }) => n + (s.duplicate ?? 0), 0) ?? 0;

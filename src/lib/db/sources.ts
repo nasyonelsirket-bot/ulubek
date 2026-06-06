@@ -3,6 +3,7 @@ import { SourceType as DbSourceType } from "@prisma/client";
 import { categories as staticCategories } from "@/data/categories";
 import { prisma } from "./prisma";
 import type { MockSource, SourceFetchType, SourceKind, SourceUrlType } from "@/data/types";
+import { isPortalRssUrl } from "@/lib/ai-engine/scraper";
 
 export type SourceWithMeta = MockSource & {
   category: { id: string; name: string };
@@ -26,12 +27,14 @@ function inferKind(row: DbSource): SourceKind {
 }
 
 function inferFetchType(row: DbSource): SourceFetchType {
+  if (isPortalRssUrl(row.url)) return "WEB";
   if (row.type === DbSourceType.RSS) return "RSS";
   if (row.url.includes("rss") || row.url.endsWith(".xml")) return "RSS";
   return "WEB";
 }
 
 function inferUrlType(row: DbSource): SourceUrlType {
+  if (isPortalRssUrl(row.url)) return "SITE";
   if (row.type === DbSourceType.RSS || row.url.includes("rss") || row.url.endsWith(".xml")) {
     return "RSS";
   }

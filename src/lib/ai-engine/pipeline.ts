@@ -35,7 +35,7 @@ import {
   getDynamicArticleCount,
 } from "./store";
 import { appendPipelineLog } from "./pipeline-log";
-import { scrapeWebsite, scrapeArticlePage, isRssUrl } from "./scraper";
+import { scrapeWebsite, scrapeArticlePage, scrapePortalRssPage, scrapeArticleMeta, isRssUrl, isPortalRssUrl, type ScrapedArticle } from "./scraper";
 import { addQueueItem, updateQueueItem, isUrlInQueue } from "./queue";
 import { BOOTSTRAP_ARTICLE_TARGET } from "./runtime-init";
 import type { RawArticle } from "@/data/types";
@@ -76,6 +76,7 @@ export interface PipelineOptions {
   trigger?: "cron" | "manual" | "single" | "bootstrap";
   fastTrack?: boolean;
   maxSourcesPerRun?: number;
+  maxImportPerSource?: number;
 }
 
 interface FeedItem {
@@ -115,6 +116,7 @@ function shouldFetchSource(source: MockSource, force: boolean, respectInterval: 
 }
 
 function resolveFetchType(source: MockSource): SourceFetchType {
+  if (isPortalRssUrl(source.url)) return "WEB";
   if (source.fetchType) return source.fetchType;
   if (isRssUrl(source.url)) return "RSS";
   return "WEB";
@@ -154,6 +156,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
     trigger = sourceId ? "single" : bootstrap ? "bootstrap" : force ? "manual" : "cron",
     fastTrack: fastTrackOpt,
     maxSourcesPerRun = trigger === "cron" ? 16 : 50,
+    maxImportPerSource,
   } = options;
 
   const fastTrack = fastTrackOpt ?? trigger !== "bootstrap";
@@ -212,7 +215,7 @@ export async function runAutoNewsPipeline(options: PipelineOptions = {}): Promis
             errors: [] as string[],
           });
         }
-        return processSource(source, bootstrap, fastTrack);
+        return processSource(source, bootstrap, fastTrack, maxImportPerSource);
       })
     );
     for (const result of batchResults) {
@@ -312,6 +315,42 @@ function extractRssImage(item: Record<string, unknown>): string | undefined {
   return match?.[1];
 }
 
+async function enrichPortalItems(links: ScrapedArticle[], skipEnrich: boolean): Promise<FeedItem[]> {
+  if (skipEnrich) {
+    const batchSize = 4;
+    const items: FeedItem[] = [];
+    for (let i = 0; i < links.length; i += batchSize) {
+      const batch = links.slice(i, i + batchSize);
+      const metas = await Promise.all(batch.map((link) => scrapeArticleMeta(link.url)));
+      for (let j = 0; j < batch.length; j++) {
+        const link = batch[j];
+        const meta = metas[j];
+        items.push({
+          title: meta?.title || link.title,
+          link: link.url,
+          content: meta?.content || link.title,
+          publishedAt: meta?.publishedAt,
+          sourceImage: meta?.image,
+        });
+      }
+    }
+    return items;
+  }
+
+  const items: FeedItem[] = [];
+  for (const link of links) {
+    const detail = (await scrapeArticlePage(link.url)) ?? (await scrapeArticleMeta(link.url));
+    items.push({
+      title: detail?.title || link.title,
+      link: link.url,
+      content: detail?.content || link.title,
+      publishedAt: detail?.publishedAt,
+      sourceImage: detail?.image,
+    });
+  }
+  return items;
+}
+
 async function fetchItemsFromSource(
   source: MockSource,
   bootstrap: boolean,
@@ -327,6 +366,14 @@ async function fetchItemsFromSource(
     if (!detail) return [];
     if (detail.publishedAt && !isWithinLookbackDays(detail.publishedAt, lookback)) return [];
     return [{ title: detail.title, link: detail.url, content: detail.content, publishedAt: detail.publishedAt, sourceImage: detail.image }];
+  }
+
+  if (isPortalRssUrl(source.url)) {
+    const links = await scrapePortalRssPage(source.url, itemLimit);
+    const items = await enrichPortalItems(links, skipEnrich);
+    return items.filter(
+      (item) => !item.publishedAt || isWithinLookbackDays(item.publishedAt, lookback)
+    );
   }
 
   if (urlType === "RSS" || resolveFetchType(source) === "RSS") {
@@ -379,7 +426,8 @@ async function fetchItemsFromSource(
 async function processSource(
   source: MockSource,
   bootstrap = false,
-  fastTrack = false
+  fastTrack = false,
+  maxImportPerSource?: number
 ): Promise<PipelineResult> {
   try {
     const items = await fetchItemsFromSource(source, bootstrap, fastTrack);
@@ -400,9 +448,9 @@ async function processSource(
     const categorySlug = categories.find((c) => c.id === source.categoryId)?.slug;
     return processItemsWithSource(source, items, bootstrap, categorySlug, {
       fastTrack,
-      maxImport: fastTrack ? 5 : bootstrap ? 30 : 8,
+      maxImport: maxImportPerSource ?? (fastTrack ? 5 : bootstrap ? 30 : 8),
       skipEnrich: fastTrack,
-      concurrency: fastTrack ? 4 : 1,
+      concurrency: fastTrack ? 3 : 1,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";

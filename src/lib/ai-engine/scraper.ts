@@ -10,6 +10,83 @@ export interface ScrapedArticle {
 
 const USER_AGENT = "UlubekMedya-Bot/2.0 (+https://ulubekmedya.com)";
 
+/** rss.haberler.com / rss.sondakika.com HTML haber listeleri */
+export function isPortalRssUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "rss.haberler.com" || host === "rss.sondakika.com";
+  } catch {
+    return false;
+  }
+}
+
+export async function scrapePortalRssPage(baseUrl: string, limit = 15): Promise<ScrapedArticle[]> {
+  const res = await fetch(baseUrl, {
+    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!res.ok) throw new Error(`Portal feed alınamadı: HTTP ${res.status}`);
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const items: ScrapedArticle[] = [];
+  const seen = new Set<string>();
+
+  $("li.news-item a.news-link, .news-item a.news-link").each((_, el) => {
+    if (items.length >= limit) return false;
+    const href = $(el).attr("href");
+    const title = $(el).text().replace(/\s+/g, " ").trim();
+    if (!href || !title || title.length < 12) return;
+
+    let url = href;
+    try {
+      url = new URL(href, baseUrl).href;
+    } catch {
+      return;
+    }
+
+    if (seen.has(url)) return;
+    seen.add(url);
+    items.push({ title, url, content: title });
+  });
+
+  if (items.length === 0) {
+    throw new Error("Portal feed'de haber bulunamadı");
+  }
+
+  return items;
+}
+
+/** Hızlı og: meta okuma — görsel ve kısa özet için */
+export async function scrapeArticleMeta(
+  url: string
+): Promise<Pick<ScrapedArticle, "title" | "content" | "image" | "publishedAt"> | null> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) return null;
+
+  const html = (await res.text()).slice(0, 100_000);
+  const pick = (prop: string) =>
+    html.match(new RegExp(`property="${prop}"\\s+content="([^"]+)"`, "i"))?.[1] ||
+    html.match(new RegExp(`content="([^"]+)"\\s+property="${prop}"`, "i"))?.[1];
+
+  const title = pick("og:title")?.trim();
+  const content = pick("og:description")?.trim();
+  const image = pick("og:image")?.trim();
+  const publishedAt = pick("article:published_time")?.trim();
+
+  if (!title) return null;
+  return {
+    title,
+    content: content && content.length >= 40 ? content : title,
+    image,
+    publishedAt,
+  };
+}
+
 export async function scrapeWebsite(baseUrl: string, limit = 8): Promise<ScrapedArticle[]> {
   const res = await fetch(baseUrl, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
@@ -82,5 +159,6 @@ export async function scrapeArticlePage(url: string): Promise<ScrapedArticle | n
 }
 
 export function isRssUrl(url: string): boolean {
+  if (isPortalRssUrl(url)) return false;
   return /\.(xml|rss|rdf)$/i.test(url) || /\/rss/i.test(url) || url.includes("feed");
 }

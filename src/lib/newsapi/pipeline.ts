@@ -60,15 +60,16 @@ function toFeedItems(articles: Awaited<ReturnType<typeof fetchNewsApiFeed>>): Fe
 export interface NewsApiPipelineOptions {
   force?: boolean;
   trigger?: "cron" | "manual";
+  maxFeedsPerSync?: number;
 }
 
-function pickFeedsForSync(force: boolean): NewsApiFeed[] {
-  if (force) return NEWSAPI_FEEDS;
+function pickFeedsForSync(force: boolean, maxFeeds = FEEDS_PER_SYNC): NewsApiFeed[] {
+  if (force) return NEWSAPI_FEEDS.slice(0, maxFeeds);
 
   const state = getNewsApiSyncState();
   const start = state.feedRotationIndex ?? 0;
   const picked: NewsApiFeed[] = [];
-  for (let i = 0; i < FEEDS_PER_SYNC; i++) {
+  for (let i = 0; i < maxFeeds; i++) {
     picked.push(NEWSAPI_FEEDS[(start + i) % NEWSAPI_FEEDS.length]);
   }
   return picked;
@@ -77,7 +78,7 @@ function pickFeedsForSync(force: boolean): NewsApiFeed[] {
 export async function runNewsApiPipeline(
   options: NewsApiPipelineOptions = {}
 ): Promise<PipelineSummary | null> {
-  const { force = false, trigger = "cron" } = options;
+  const { force = false, trigger = "cron", maxFeedsPerSync = FEEDS_PER_SYNC } = options;
   const settings = getSettings();
 
   if (!settings.newsApiEnabled) {
@@ -117,10 +118,10 @@ export async function runNewsApiPipeline(
     timestamp: new Date().toISOString(),
   };
 
-  const feedsToSync = pickFeedsForSync(force);
+  const feedsToSync = pickFeedsForSync(force, maxFeedsPerSync);
   const stateBefore = getNewsApiSyncState();
   const nextRotation =
-    ((stateBefore.feedRotationIndex ?? 0) + FEEDS_PER_SYNC) % NEWSAPI_FEEDS.length;
+    ((stateBefore.feedRotationIndex ?? 0) + maxFeedsPerSync) % NEWSAPI_FEEDS.length;
 
   try {
     const fetched = await Promise.allSettled(
