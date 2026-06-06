@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import {
   adminErr,
   adminOk,
@@ -5,9 +6,8 @@ import {
   toErrorMessage,
 } from "@/lib/api/admin-response";
 import { runNewsApiPipeline } from "@/lib/newsapi/pipeline";
-import { countArticlesInDb } from "@/lib/db/articles";
-import { checkDatabaseConnection } from "@/lib/db/prisma";
-import { getDynamicArticleCount } from "@/lib/ai-engine/store";
+import { isNewsApiConfigured } from "@/lib/newsapi/client";
+import { getSettings } from "@/lib/settings/store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -17,19 +17,25 @@ export async function POST() {
     const { unauthorized } = await requireAdminSession();
     if (unauthorized) return unauthorized;
 
-    const summary = await runNewsApiPipeline({ force: true, trigger: "manual" });
-
-    if (!summary) {
-      return adminErr("NewsAPI devre dışı veya anahtar eksik", 400);
+    if (!getSettings().newsApiEnabled) {
+      return adminErr("NewsAPI devre dışı", 400);
+    }
+    if (!isNewsApiConfigured()) {
+      return adminErr("NewsAPI anahtarı eksik", 400);
     }
 
-    const dbCount = (await checkDatabaseConnection())
-      ? await countArticlesInDb()
-      : getDynamicArticleCount();
+    after(async () => {
+      try {
+        await runNewsApiPipeline({ force: true, trigger: "manual" });
+      } catch (err) {
+        console.error("[admin/newsapi/sync background]", err);
+      }
+    });
 
     return adminOk({
-      ...summary,
-      databaseCount: dbCount,
+      started: true,
+      async: true,
+      message: "NewsAPI senkronizasyonu arka planda başlatıldı.",
     });
   } catch (err) {
     console.error("[admin/newsapi/sync POST]", err);

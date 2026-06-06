@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runAutoNewsPipeline, runBootstrapImport } from "@/lib/ai-engine/pipeline";
-import { getDynamicArticleCount } from "@/lib/ai-engine/store";
-import { BOOTSTRAP_ARTICLE_TARGET } from "@/lib/ai-engine/runtime-init";
-import { runNewsApiPipeline } from "@/lib/newsapi/pipeline";
-import { countArticlesInDb } from "@/lib/db/articles";
-import { checkDatabaseConnection } from "@/lib/db/prisma";
-import { ensureDefaultRssSources } from "@/lib/db/ensure-sources";
+import { runFullNewsSync } from "@/lib/news/sync-orchestrator";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-async function getArticleCount(): Promise<number> {
-  if (await checkDatabaseConnection()) return countArticlesInDb();
-  return getDynamicArticleCount();
-}
 
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -22,23 +11,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const rssSourceCount = await ensureDefaultRssSources();
-    const count = await getArticleCount();
-
-    const [newsApiSummary, rssSummary] = await Promise.all([
-      runNewsApiPipeline({ trigger: "cron" }),
-      count < BOOTSTRAP_ARTICLE_TARGET
-        ? runBootstrapImport(2)
-        : runAutoNewsPipeline({ respectInterval: true, trigger: "cron", fastTrack: true }),
-    ]);
-
-    return NextResponse.json({
-      ok: true,
-      databaseCount: await getArticleCount(),
-      rssSourcesRegistered: rssSourceCount,
-      newsApi: newsApiSummary,
-      ...rssSummary,
-    });
+    const summary = await runFullNewsSync("cron");
+    return NextResponse.json({ ok: true, ...summary });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Pipeline hatası" },

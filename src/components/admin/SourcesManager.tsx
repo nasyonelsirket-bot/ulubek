@@ -340,6 +340,10 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       const data = await readApiJson<{
         success?: boolean;
         error?: string;
+        started?: boolean;
+        async?: boolean;
+        message?: string;
+        rssSourcesRegistered?: number;
         imported?: number;
         created?: number;
         skipped?: number;
@@ -350,6 +354,15 @@ export default function SourcesManager({ initialSources, categories }: SourcesMa
       }>(res);
       if (apiFailed(data, res)) {
         setMessage(data.error || "Tarama başarısız");
+        return;
+      }
+      if (data.started || data.async) {
+        setMessage(
+          data.message ||
+            `Tarama arka planda başladı${data.rssSourcesRegistered ? ` (${data.rssSourcesRegistered} RSS kaynağı hazır)` : ""}. Sayfa otomatik yenilenecek…`
+        );
+        window.setTimeout(() => router.refresh(), 20000);
+        window.setTimeout(() => router.refresh(), 60000);
         return;
       }
       const dup = data.sources?.reduce((n: number, s: { duplicate?: number }) => n + (s.duplicate ?? 0), 0) ?? 0;

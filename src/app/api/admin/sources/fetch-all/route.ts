@@ -1,10 +1,12 @@
+import { after } from "next/server";
 import {
   adminErr,
   adminOk,
   requireAdminSession,
   toErrorMessage,
 } from "@/lib/api/admin-response";
-import { fetchAllSources } from "@/lib/services/admin";
+import { ensureDefaultRssSources } from "@/lib/db/ensure-sources";
+import { runFullNewsSync } from "@/lib/news/sync-orchestrator";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -14,16 +16,22 @@ export async function POST() {
     const { unauthorized } = await requireAdminSession();
     if (unauthorized) return unauthorized;
 
-    const summary = await fetchAllSources();
-    const found =
-      summary.sources?.reduce((n: number, s: { found?: number }) => n + (s.found ?? 0), 0) ?? 0;
+    const rssSourcesRegistered = await ensureDefaultRssSources();
+
+    after(async () => {
+      try {
+        await runFullNewsSync("manual");
+      } catch (err) {
+        console.error("[admin/sources/fetch-all background]", err);
+      }
+    });
 
     return adminOk({
-      ...summary,
-      created: summary.imported,
-      found,
-      results: summary.sources,
-      databaseCount: summary.databaseCount,
+      started: true,
+      async: true,
+      rssSourcesRegistered,
+      message:
+        "Haber taraması arka planda başlatıldı. RSS ve NewsAPI kaynakları taranıyor; 1–3 dakika içinde yeni haberler görünecek.",
     });
   } catch (err) {
     console.error("[admin/sources/fetch-all POST]", err);

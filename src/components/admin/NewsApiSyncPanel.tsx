@@ -72,12 +72,25 @@ export default function NewsApiSyncPanel({ initial }: NewsApiSyncPanelProps) {
       const data = await readApiJson<{
         success?: boolean;
         error?: string;
+        started?: boolean;
+        async?: boolean;
+        message?: string;
         imported?: number;
         found?: number;
       }>(res);
 
       if (apiFailed(data, res)) {
         setMessage(data.error || "Senkronizasyon başarısız");
+        return;
+      }
+
+      if (data.started || data.async) {
+        setMessage(data.message || "NewsAPI senkronizasyonu arka planda başladı.");
+        window.setTimeout(() => refreshStatus(), 15000);
+        window.setTimeout(() => {
+          refreshStatus();
+          router.refresh();
+        }, 45000);
         return;
       }
 

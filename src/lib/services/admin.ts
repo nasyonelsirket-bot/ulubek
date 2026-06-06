@@ -203,56 +203,12 @@ export async function fetchSingleSource(sourceId: string) {
 }
 
 export async function fetchAllSources() {
-  const dbReady = await dbAvailable();
-  let dynamicCount = getDynamicArticleCount();
-
-  if (dbReady) {
-    const { prisma } = await import("@/lib/db/prisma");
-    const { ensureDefaultRssSources } = await import("@/lib/db/ensure-sources");
-    await ensureDefaultRssSources();
-    dynamicCount = await prisma.article.count();
-  }
-
-  if (dynamicCount < BOOTSTRAP_ARTICLE_TARGET) {
-    const { runBootstrapImport } = await import("@/lib/ai-engine/pipeline");
-    const { runNewsApiPipeline } = await import("@/lib/newsapi/pipeline");
-    const [summary] = await Promise.all([
-      runBootstrapImport(),
-      runNewsApiPipeline({ force: true, trigger: "manual" }),
-    ]);
-    if (dbReady) {
-      const { prisma } = await import("@/lib/db/prisma");
-      return {
-        ...summary,
-        bootstrap: true,
-        databaseCount: await prisma.article.count(),
-      };
-    }
-    return {
-      ...summary,
-      bootstrap: true,
-      databaseCount: getDynamicArticleCount(),
-    };
-  }
-
-  const { runAutoNewsPipeline } = await import("@/lib/ai-engine/pipeline");
-  const { runNewsApiPipeline } = await import("@/lib/newsapi/pipeline");
-  const [summary] = await Promise.all([
-    runAutoNewsPipeline({ force: true, trigger: "manual", fastTrack: true }),
-    runNewsApiPipeline({ force: true, trigger: "manual" }),
-  ]);
-  if (dbReady) {
-    const { prisma } = await import("@/lib/db/prisma");
-    return {
-      ...summary,
-      bootstrap: false,
-      databaseCount: await prisma.article.count(),
-    };
-  }
+  const { runFullNewsSync } = await import("@/lib/news/sync-orchestrator");
+  const summary = await runFullNewsSync("manual");
   return {
     ...summary,
     bootstrap: false,
-    databaseCount: getDynamicArticleCount(),
+    databaseCount: summary.databaseCount,
   };
 }
 

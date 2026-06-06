@@ -6,7 +6,10 @@ export async function readApiJson<T = Record<string, unknown>>(res: Response): P
   try {
     return JSON.parse(text) as T;
   } catch {
-    return { success: false, error: "Geçersiz JSON yanıtı" } as T;
+    const hint = text.trimStart().startsWith("<")
+      ? "Sunucu zaman aşımına uğradı veya HTML hata sayfası döndü"
+      : "Geçersiz JSON yanıtı";
+    return { success: false, error: hint } as T;
   }
 }
 
