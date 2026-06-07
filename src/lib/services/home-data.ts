@@ -69,7 +69,7 @@ async function buildHomePageData(): Promise<HomePageData | null> {
 export const getHomePageData = unstable_cache(
   buildHomePageData,
   ["homepage-v2"],
-  { revalidate: 120, tags: ["articles"] }
+  { revalidate: 60, tags: ["articles"] }
 );
 
 export { FEED_PAGE_SIZE };

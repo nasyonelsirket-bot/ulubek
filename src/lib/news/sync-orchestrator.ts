@@ -31,7 +31,7 @@ export async function runFullNewsSync(trigger: "cron" | "manual" = "manual") {
   ]);
 
   const rssSummary = await runAutoNewsPipeline({
-    respectInterval: trigger === "cron",
+    respectInterval: false,
     force: trigger === "manual",
     trigger,
     fastTrack: true,

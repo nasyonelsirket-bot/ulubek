@@ -419,13 +419,11 @@ async function fetchPortalItems(
     (item) => !item.publishedAt || isWithinLookbackDays(item.publishedAt, lookback)
   );
 
-  if (bootstrap) {
-    filtered.sort((a, b) => {
-      const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : Date.now();
-      const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : Date.now();
-      return ta - tb;
-    });
-  }
+  filtered.sort((a, b) => {
+    const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : Date.now();
+    const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : Date.now();
+    return bootstrap ? ta - tb : tb - ta;
+  });
 
   return filtered;
 }
@@ -438,7 +436,7 @@ async function fetchItemsFromSource(
 ): Promise<FeedItem[]> {
   const settings = getSettings();
   const lookback = lookbackDays ?? settings.scanLookbackDays;
-  const itemLimit = bootstrap ? PORTAL_BOOTSTRAP_LINK_LIMIT : skipEnrich ? 20 : 15;
+  const itemLimit = bootstrap ? PORTAL_BOOTSTRAP_LINK_LIMIT : skipEnrich ? 30 : 20;
   const urlType = resolveUrlType(source);
 
   if (urlType === "ARTICLE") {
@@ -520,7 +518,7 @@ async function processSource(
         spam: 0,
         errors: ["Son 10 günde haber bulunamadı"],
       };
-      updateSourceFetchTime(source.id, null, 0);
+      await updateSourceFetchTime(source.id, null, 0);
       return empty;
     }
     const categorySlug = categories.find((c) => c.id === source.categoryId)?.slug;
@@ -533,7 +531,7 @@ async function processSource(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
-    updateSourceFetchTime(source.id, msg, 0);
+    await updateSourceFetchTime(source.id, msg, 0);
     return {
       sourceId: source.id,
       sourceName: source.name,
@@ -823,8 +821,8 @@ export async function processItemsWithSource(
             imagePrompt: `[${imageResult.provider}] ${imageResult.prompt}`,
           });
         }
+        void notifyArticlePublished(saved.id);
         if (!fastTrack) {
-          void notifyArticlePublished(saved.id);
           void publishArticleToSocial({
             title: saved.title,
             excerpt: saved.excerpt,
@@ -865,11 +863,11 @@ export async function processItemsWithSource(
       await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
     }
 
-    updateSourceFetchTime(source.id, result.errors.length > 0 ? result.errors[0] : null, result.imported);
+    await updateSourceFetchTime(source.id, result.errors.length > 0 ? result.errors[0] : null, result.imported);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Kaynak tarama hatası";
     result.errors.push(msg);
-    updateSourceFetchTime(source.id, msg, 0);
+    await updateSourceFetchTime(source.id, msg, 0);
   }
 
   return result;

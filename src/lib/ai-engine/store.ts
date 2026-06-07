@@ -2,6 +2,7 @@ import type { RawArticle } from "@/data/types";
 import type { MockSource } from "@/data/types";
 import { articles as seedArticles } from "@/data/articles";
 import { sources as seedSources } from "@/data/sources";
+import { checkDatabaseConnection, prisma } from "@/lib/db/prisma";
 import { readRuntimeJson, writeRuntimeJson } from "@/lib/runtime/paths";
 
 export function getAllSourcesFromStore(): MockSource[] {
@@ -65,16 +66,30 @@ export function clearPipelineRuntimeState() {
   writeRuntimeJson("articles.json", []);
 }
 
-export function updateSourceFetchTime(id: string, error?: string | null, imported = 0) {
+export async function updateSourceFetchTime(id: string, error?: string | null, imported = 0) {
+  const now = new Date().toISOString();
   const sources = getAllSourcesFromStore();
   const source = sources.find((s) => s.id === id);
   if (source) {
     saveSource({
       ...source,
-      lastFetchedAt: new Date().toISOString(),
+      lastFetchedAt: now,
       lastFetchError: error ?? null,
       articlesImported: (source.articlesImported ?? 0) + imported,
     });
+  }
+
+  if (await checkDatabaseConnection()) {
+    await prisma.source
+      .update({
+        where: { id },
+        data: {
+          lastFetchedAt: new Date(now),
+          lastFetchError: error ?? null,
+          ...(imported > 0 ? { articlesFetched: { increment: imported } } : {}),
+        },
+      })
+      .catch(() => undefined);
   }
 }
 
